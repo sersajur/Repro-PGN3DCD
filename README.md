@@ -9,7 +9,7 @@ This Git project is built upon Torch-Point3D depository to share code for PGN3DC
 
 # Overview
 
-We introduce a new dataset, HKCD, and proposes a novel model, PGN3DCD, for 3D change detection.
+We introduce a new dataset, HKCD, and proposes a novel model, PGN3DCD, for 3D change detection. Moreover, you can download the pretained weight for HKCD https://figshare.com/articles/dataset/HKCD/30204376.
 
 ## Requirements
 
