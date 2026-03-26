@@ -222,7 +222,10 @@ class HKCD(Dataset):
             g = g.reshape(-1, 1)
             b = plydata.elements[0].data["blue"]
             b = b.reshape(-1, 1)
-            cd_type = plydata.elements[0].data["scalar_cd_type"]
+            try:
+                cd_type = plydata.elements[0].data["scalar_cd_type"]
+            except ValueError:
+                cd_type = plydata.elements[0].data["cd_type"]
             cd_type = cd_type.reshape(-1, 1)
             vertices = np.concatenate((x,y,z,r,g,b,cd_type), axis=1)
             # num_verts = plydata[nameInPly].count
