@@ -2,11 +2,11 @@ data:
   class: HKCDPairCylinder.HKCDDataset
   dataset_name: "HKCD"
   task: change_detection
-  dataTrainFile:  /home/user/zhanwenxiao/changedetection/data/HKCD/grid_0.200/Train/ #/home/user/zhanwenxiao/data/CD_DATA/HKCD/grid_0.200/Train/ #/gpfswork/rech/rin/utf14pr/dataset/Urb3DSimul/IEEE_Dataset_V1/5-MultiSensor/Train/ #
-  dataValFile: /home/user/zhanwenxiao/changedetection/data/HKCD/grid_0.200/Val/ #/home/user/zhanwenxiao/data/CD_DATA/HKCD/grid_0.200/Val/ #/gpfswork/rech/rin/utf14pr/dataset/Urb3DSimul/IEEE_Dataset_V1/5-MultiSensor/Val/ #
-  dataTestFile: /home/user/zhanwenxiao/changedetection/data/HKCD/grid_0.200/Test/ # /home/user/zhanwenxiao/changedetection/data/HKCD/grid_0.200/Test/ #/home/user/zhanwenxiao/data/CD_DATA/HKCD/grid_0.200/Test/ #/gpfswork/rech/rin/utf14pr/dataset/Urb3DSimul/IEEE_Dataset_V1/5-MultiSensor/Train/ #
+  dataTrainFile: /data/HKCD/Train/
+  dataValFile: /data/HKCD/Val/
+  dataTestFile: /data/HKCD/Test/
   dataroot: data
-  preprocessed_dir: /home/user/zhanwenxiao/changedetection/data/HKCD/grid_0.200/testets/ # /home/user/zhanwenxiao/data/CD_DATA/HKCD/grid_0.200/testets/ #/gpfswork/rech/rin/utf14pr/dev/torch-points3d/data/${data.dataset_name}/5-MultiSensor/ #
+  preprocessed_dir: /data/HKCD/preprocessed/
   first_subsampling: 1.0 #0.05 # Grid size of the input data
   use_category: False # Use object category information
   radius: 15
