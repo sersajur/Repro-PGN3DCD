@@ -1,63 +1,97 @@
-# PGN3DCD: Prior-Knowledge-Guided Network for Urban 3D Point Cloud Change Detection
-Wenxiao Zhan and Jing Chen (Submitted to ISPRS Journal of Photogrammetry and Remote Sensing, 2024)
+# Repro-PGN3DCD
 
-This Git project is built upon Torch-Point3D depository to share code for PGN3DCD networks for 3D point clouds change segmentation. See our up-coming paper for more details.
+A fork of [PGN3DCD](https://github.com/zhanwenxiao/PGN3DCD) configured for reproducing the original evaluation results on the HKCD dataset. See [README_PGN3DCD.md](README_PGN3DCD.md) for the original documentation.
 
-<p align="center">
-   <img src="docs/Overview.png" >      
-</p>
+## What this fork adds
 
-# Overview
+- **Dockerized environment** (CPU and GPU) with all dependencies pinned
+- **Standalone evaluation script** (`eval_simple.py`) — no Trainer/Hydra overhead
+- **Bug fixes** for running inference on CPU and with varying PLY field naming
 
-We introduce a new dataset, HKCD, and proposes a novel model, PGN3DCD, for 3D change detection. Moreover, you can download the pretained weight for HKCD https://figshare.com/articles/dataset/HKCD/30204376.
+## Repository structure
 
-## Requirements
-
-- CUDA 10 or higher (if you want GPU version)
-- Python 3.7 or higher + headers (python-dev)
-- PyTorch 1.8.1 or higher (PyTorch >= 1.9 is recommended)
-- A Sparse convolution backend (optional) see [here](https://github.com/nicolas-chaulet/torch-points3d#3d-sparse-convolution-support) for installation instructions
-
-Install with
-
-```bash
-pip install torch
-pip install torch-points3d
+```
+.
+├── docker/
+│   ├── Dockerfile.cpu          # Docker image for CPU inference
+│   ├── Dockerfile.gpu          # Docker image for GPU inference
+│   ├── install_system.sh       # System-level dependencies (from upstream)
+│   └── install_python.sh       # Python/PyTorch installation (from upstream)
+├── conf/
+│   ├── evalSiamKPConv.yaml     # Eval config (paths updated for container use)
+│   └── data/change_detection/
+│       └── HKCDPair.yaml       # HKCD dataset config (paths updated for container use)
+├── torch_points3d/
+│   ├── datasets/change_detection/
+│   │   └── HKCDPairCylinder.py # Fixed: support both 'cd_type' and 'scalar_cd_type' PLY fields
+│   ├── models/change_detection/
+│   │   └── SIFT_SKP_double_pc.py  # Fixed: float/double dtype mismatch in get_mask_v2
+│   └── metrics/
+│       └── hkCD_tracker.py     # Fixed: skip None entries in merge_avg_mappings
+├── eval_simple.py              # Standalone eval script (configurable via env vars)
+├── docker-compose.yml          # Compose config for local CPU evaluation
+├── .env.example                # Template for local paths configuration
+├── .dockerignore               # Excludes .git, checkpoints, data from Docker build
+└── README_PGN3DCD.md           # Original upstream README
 ```
 
-## Project structure
+## File tree inside the Docker container
 
-```bash
-├─ benchmark               # Output from various benchmark runs
-├─ conf                    # All configurations for training nad evaluation leave there
-├─ notebooks               # A collection of notebooks that allow result exploration and network debugging
-├─ docker                  # Docker image that can be used for inference or training
-├─ docs                    # All the doc
-├─ eval.py                 # Eval script
-├─ find_neighbour_dist.py  # Script to find optimal #neighbours within neighbour search operations
-├─ forward_scripts         # Script that runs a forward pass on possibly non annotated data
-├─ outputs                 # All outputs from your runs sorted by date
-├─ scripts                 # Some scripts to help manage the project
-├─ torch_points3d
-    ├─ core                # Core components
-    ├─ datasets            # All code related to datasets
-    ├─ metrics             # All metrics and trackers
-    ├─ models              # All models
-    ├─ modules             # Basic modules that can be used in a modular way
-    ├─ utils               # Various utils
-    └─ visualization       # Visualization
-├─ test
-└─ train.py                # Main script to launch a training
+```
+/ (container root)
+├── venv/                       # Python 3.8 virtual environment with all dependencies
+├── tp3d/                       # Project source code (WORKDIR, PYTHONPATH)
+│   ├── eval_simple.py          # Entrypoint
+│   ├── torch_points3d/         # Model, dataset, and metrics code
+│   └── conf/                   # Hydra configs (used by dataset factory)
+├── data/                       # Mounted volume with dataset and checkpoint
+│   ├── SiamEncFusionKPConv.pt  # Pre-trained model checkpoint
+│   └── HKCD/
+│       ├── Train/              # Training split (used for preprocessing reference)
+│       ├── Val/                # Validation split
+│       └── Test/               # Test split (evaluation target)
+└── output/                     # Mounted volume for evaluation results
+    ├── res.txt                 # Metrics summary (per-area, average, cumulative)
+    ├── cm.png                  # Confusion matrix (pointCloud0)
+    ├── cm2.png                 # Confusion matrix (pointCloud1)
+    └── <area_name>/            # Per-area predictions
+        ├── pointCloud0.ply     # Predictions for time epoch 0
+        └── pointCloud1.ply     # Predictions for time epoch 1
 ```
 
-## HKCD Dataset
+## Quick start
 
-You can download the HKCD by this link "https://pan.baidu.com/s/1cQFjI04trgf5eMBvDTS4zg" and email the "zhanwenxiao@whu.edu.cn" to get the password.
-
-## Inference
-
-You can train the model by
+### 1. Clone and configure
 
 ```bash
-python trainSiamKPConv.py
+git clone https://github.com/sersajur/Repro-PGN3DCD.git
+cd Repro-PGN3DCD
+cp .env.example .env
+# Edit .env: set DATA_PATH to directory containing SiamEncFusionKPConv.pt and HKCD/
 ```
+
+### 2. Run evaluation (CPU)
+
+```bash
+docker compose build eval-cpu
+docker compose run --rm eval-cpu
+```
+
+Results will appear in `./output/`.
+
+### 3. Configuration
+
+All parameters are configurable via environment variables (set in `.env` or pass directly):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATA_PATH` | *(required)* | Host path to data directory |
+| `OUTPUT_PATH` | `./output` | Host path for results |
+| `CHECKPOINT_PATH` | `/data/SiamEncFusionKPConv.pt` | Container path to checkpoint |
+| `DATA_DIR` | `/data/HKCD` | Container path to dataset |
+| `OUTPUT_DIR` | `/output` | Container path for results |
+| `WEIGHT_NAME` | `miou` | Weights to load: `miou`, `miou_ch`, `acc`, `latest` |
+| `BATCH_SIZE` | `10` | Batch size |
+| `NUM_WORKERS` | `2` | DataLoader workers |
+| `MAX_BATCHES` | `0` | Limit batches (0 = all, useful for quick tests) |
+| `DEVICE` | `auto` | `auto`, `cpu`, or `cuda` |
