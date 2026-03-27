@@ -4,7 +4,7 @@ A fork of [PGN3DCD](https://github.com/zhanwenxiao/PGN3DCD) configured for repro
 
 ## What this fork adds
 
-- **Dockerized environment** (CPU and GPU) with all dependencies pinned
+- **Dockerized environment** (CPU) with all dependencies pinned
 - **Standalone evaluation script** (`eval_simple.py`) — no Trainer/Hydra overhead
 - **Bug fixes** for running inference on CPU and with varying PLY field naming
 
