@@ -404,17 +404,19 @@ class SiamEncFusionKPConv(UnwrappedUnetBasedModel):
         self.loss.backward()  # calculate gradients of network G w.r.t. loss_G
 
     def get_mask_v2(self, pos_1, pos_2, f_1, f_2, pos_th, f_th, knearest_idx_2):
+        pos_1, pos_2, f_1, f_2 = pos_1.float(), pos_2.float(), f_1.float(), f_2.float()
+        pos_th, f_th = pos_th.float() if torch.is_tensor(pos_th) else pos_th, f_th.float() if torch.is_tensor(f_th) else f_th
         knearest_idx_2 = knearest_idx_2.reshape(knearest_idx_2.shape[0], -1, 1)
         # 几何差异
         nearest_pos_2of1 = pos_1[knearest_idx_2[1, :, :], :]
         pos_2_ex = pos_2.unsqueeze(1).repeat(1, nearest_pos_2of1.shape[1], 1)
-        dis_mat_2 = torch.mean(torch.sqrt(torch.sum(torch.square(pos_2_ex - nearest_pos_2of1), dim=-1)), dim=-1).view(-1, 1)
-        pos_m_1 = torch.where(dis_mat_2 > pos_th, 1.0, dis_mat_2 / pos_th)
+        dis_mat_2 = torch.mean(torch.sqrt(torch.sum(torch.square(pos_2_ex - nearest_pos_2of1), dim=-1)), dim=-1).view(-1, 1).float()
+        pos_m_1 = torch.where(dis_mat_2 > pos_th, torch.ones_like(dis_mat_2), dis_mat_2 / pos_th)
         # 纹理差异
         nearest_f_2of1 = f_1[knearest_idx_2[1, :, :], :]
         f_2_ex = f_2.unsqueeze(1).repeat(1, nearest_f_2of1.shape[1], 1)
-        f_mat_2 = torch.abs(torch.mean(f_2_ex - nearest_f_2of1, dim=-1).view(-1, 1))
-        f_m_1 = torch.where(f_mat_2 > f_th, 1.0, f_mat_2 / f_th)
+        f_mat_2 = torch.abs(torch.mean(f_2_ex - nearest_f_2of1, dim=-1).view(-1, 1)).float()
+        f_m_1 = torch.where(f_mat_2 > f_th, torch.ones_like(f_mat_2), f_mat_2 / f_th)
 
         input = 0.5 * pos_m_1 + 0.5 * f_m_1
         mask = input

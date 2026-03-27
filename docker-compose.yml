@@ -1,0 +1,13 @@
+services:
+  eval-cpu:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.cpu
+    platform: linux/amd64
+    shm_size: '4gb'
+    volumes:
+      - ${DATA_PATH:?Set DATA_PATH in .env}:/data
+      - ${OUTPUT_PATH:-./output}:/output
+    environment:
+      - PYTHONPATH=/tp3d
+    working_dir: /tp3d

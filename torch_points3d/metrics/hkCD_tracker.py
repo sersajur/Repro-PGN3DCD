@@ -357,6 +357,8 @@ def merge_avg_mappings(dicts):
     merged = {}
     cpt = {}
     for d in dicts:  # `dicts` is a list storing the input dictionaries
+        if d is None:
+            continue
         for key in d:
             if key not in merged:
                 if type(d[key]) == dict:

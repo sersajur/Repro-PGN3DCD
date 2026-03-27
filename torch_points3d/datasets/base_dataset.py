@@ -414,7 +414,13 @@ class BaseDataset:
     @property  # type: ignore
     @save_used_properties
     def num_classes(self):
-        return self.train_dataset.num_classes
+        for ds in [self.train_dataset, self.val_dataset, self.test_dataset]:
+            if ds is None:
+                continue
+            if isinstance(ds, list):
+                ds = ds[0]
+            return ds.num_classes
+        raise RuntimeError("No dataset available to determine num_classes")
 
     @property
     def weight_classes(self):
