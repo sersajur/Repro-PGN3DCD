@@ -640,31 +640,36 @@ class HKCDDataset(BaseSiameseDataset): #Urb3DCDDataset Urb3DSimulDataset
         self.DA = self.dataset_opt.DA
         self.TTA = False
         self.preprocessed_dir = self.dataset_opt.preprocessed_dir
-        self.train_dataset = HKCDCylinder(
-            filePaths=self.dataset_opt.dataTrainFile,
-            split="train",
-            radius=self.radius,
-            sample_per_epoch=self.sample_per_epoch,
-            DA=self.DA,
-            pre_transform=self.pre_transform,
-            preprocessed_dir=osp.join(self.preprocessed_dir, "Train"),
-            reload_preproc=self.dataset_opt.load_preprocessed,
-            reload_trees=self.dataset_opt.load_trees,
-            nameInPly=self.dataset_opt.nameInPly,
-            fix_cyl=self.dataset_opt.fix_cyl,
-        )
-        self.val_dataset = HKCDCylinder(
-            filePaths=self.dataset_opt.dataValFile,
-            split="val",
-            radius=self.radius,
-            sample_per_epoch= int(self.sample_per_epoch / 2),
-            pre_transform=self.pre_transform,
-            preprocessed_dir=osp.join(self.preprocessed_dir, "Val"),
-            reload_preproc=self.dataset_opt.load_preprocessed,
-            reload_trees=self.dataset_opt.load_trees,
-            nameInPly=self.dataset_opt.nameInPly,
-            fix_cyl=self.dataset_opt.fix_cyl,
-        )
+        eval_only = self.dataset_opt.get("eval_only", False)
+        if not eval_only:
+            self.train_dataset = HKCDCylinder(
+                filePaths=self.dataset_opt.dataTrainFile,
+                split="train",
+                radius=self.radius,
+                sample_per_epoch=self.sample_per_epoch,
+                DA=self.DA,
+                pre_transform=self.pre_transform,
+                preprocessed_dir=osp.join(self.preprocessed_dir, "Train"),
+                reload_preproc=self.dataset_opt.load_preprocessed,
+                reload_trees=self.dataset_opt.load_trees,
+                nameInPly=self.dataset_opt.nameInPly,
+                fix_cyl=self.dataset_opt.fix_cyl,
+            )
+            self.val_dataset = HKCDCylinder(
+                filePaths=self.dataset_opt.dataValFile,
+                split="val",
+                radius=self.radius,
+                sample_per_epoch= int(self.sample_per_epoch / 2),
+                pre_transform=self.pre_transform,
+                preprocessed_dir=osp.join(self.preprocessed_dir, "Val"),
+                reload_preproc=self.dataset_opt.load_preprocessed,
+                reload_trees=self.dataset_opt.load_trees,
+                nameInPly=self.dataset_opt.nameInPly,
+                fix_cyl=self.dataset_opt.fix_cyl,
+            )
+        else:
+            self._train_dataset = None
+            self._val_dataset = None
         self.test_dataset = HKCDCylinder(
             filePaths=self.dataset_opt.dataTestFile,
             split="test",
@@ -720,7 +725,8 @@ class HKCDDataset(BaseSiameseDataset): #Urb3DCDDataset Urb3DSimulDataset
             Returns:
                 [BaseTracker] -- tracker
             """
-        return HKCDTracker(self, wandb_log=wandb_log, use_tensorboard=tensorboard_log,
+        stage = "test" if self._train_dataset is None else "train"
+        return HKCDTracker(self, stage=stage, wandb_log=wandb_log, use_tensorboard=tensorboard_log,
                                  full_pc=full_pc, full_res=full_res, ignore_label=IGNORE_LABEL)
 
 

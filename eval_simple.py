@@ -52,7 +52,8 @@ def main():
     run_config.data.dataTrainFile = os.path.join(data_dir, "Train/")
     run_config.data.dataValFile = os.path.join(data_dir, "Val/")
     run_config.data.dataTestFile = os.path.join(data_dir, "Test/")
-    run_config.data.preprocessed_dir = os.path.join(data_dir, "preprocessed/")
+    run_config.data.preprocessed_dir = os.path.join(output_dir, "preprocessed/")
+    run_config.data.eval_only = True
 
     # Defaults required by BaseSiameseDataset but unused for change detection
     for key, val in [("num_points", -1), ("tau_1", 0.1), ("tau_2", 0.05),
