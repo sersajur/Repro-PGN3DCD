@@ -10,8 +10,8 @@ python3 -m pip install -U pip
 pip3 install setuptools>=41.0.0 wheel ninja
 if [ $1 == "gpu" ]; then
     echo "Install GPU"
-    pip3 install torch==1.8.1
-    pip3 install MinkowskiEngine --install-option="--force_cuda" --install-option="--cuda_home=/usr/local/cuda"
+    pip3 install --timeout 300 --retries 5 torch==1.8.1+cu111 -f https://download.pytorch.org/whl/torch_stable.html
+    CUDA_HOME=/usr/local/cuda pip3 install MinkowskiEngine
     pip3 install git+https://github.com/mit-han-lab/torchsparse.git@v1.4.0 -v
     pip3 install pycuda
 else

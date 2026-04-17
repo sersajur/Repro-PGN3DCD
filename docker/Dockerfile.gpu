@@ -1,6 +1,13 @@
-FROM nvidia/cuda:10.2-devel-ubuntu18.04
+FROM nvcr.io/nvidia/cuda:11.1.1-devel-ubuntu18.04
 
 ENV DEBIAN_FRONTEND=noninteractive
+
+# Use GCP regional mirror (fast from within GCP) + apt retries for reliability
+RUN sed -i \
+      -e 's|http://archive.ubuntu.com/ubuntu|http://europe-west4.gce.archive.ubuntu.com/ubuntu|g' \
+      -e 's|http://security.ubuntu.com/ubuntu|http://europe-west4.gce.archive.ubuntu.com/ubuntu|g' \
+      /etc/apt/sources.list && \
+    echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80retries
 
 RUN : \
     && apt-get update \
@@ -19,13 +26,14 @@ COPY docker/install_system.sh install_system.sh
 RUN bash install_system.sh
 
 ENV FORCE_CUDA=1
-ENV TORCH_CUDA_ARCH_LIST="6.0;6.1;7.0;7.5;8.0"
+ENV TORCH_CUDA_ARCH_LIST="7.5;8.0+PTX"
+ENV MAX_JOBS=8
 
 COPY docker/install_python.sh install_python.sh
 RUN bash install_python.sh gpu && rm -rf /root/.cache
 
 RUN pip3 install torch-scatter==2.0.8 torch-sparse==0.6.12 torch-cluster==1.5.9 torch-geometric==1.7.2 \
-    -f https://data.pyg.org/whl/torch-1.8.1+cu102.html \
+    -f https://data.pyg.org/whl/torch-1.8.1+cu111.html \
     && rm -rf /root/.cache
 
 RUN mkdir -p /venv/lib/python3.8/site-packages/google_drive_downloader \
@@ -37,9 +45,11 @@ COPY torch_points3d/__init__.py torch_points3d/__init__.py
 COPY README.md README.md
 ENV SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL=True
 RUN pip3 install --no-deps . && rm -rf /root/.cache
-RUN pip3 install . && rm -rf /root/.cache
+RUN pip3 install --timeout 300 --retries 5 . && rm -rf /root/.cache
 
-RUN apt-get update \
+# Clean up deadsnakes PPA sources before second apt-get update (avoids slow ppa.launchpad.net)
+RUN rm -f /etc/apt/sources.list.d/*.list && \
+    apt-get update \
     && apt-get install -y --no-install-recommends libusb-1.0-0 libgomp1 libgl1-mesa-glx libglib2.0-0 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

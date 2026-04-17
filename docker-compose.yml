@@ -1,13 +1,81 @@
+# docker-compose.yml
+# ---------------------------------------------------------------------------
+# Usage:
+#   Local Mac:   docker compose --profile local up local-cpu-eval
+#   GCP CPU VM:  docker compose --profile gcp-cpu --env-file .env.gcp up gcp-cpu-eval
+#   GCP GPU VM:  docker compose --profile gcp-gpu --env-file .env.gcp up gcp-gpu-eval
+# ---------------------------------------------------------------------------
+
+x-common-env: &common-env
+  CHECKPOINT_PATH: /data/SiamEncFusionKPConv.pt
+  DATA_DIR: /data/HKCD
+  OUTPUT_DIR: /output
+  BATCH_SIZE: ${BATCH_SIZE:-4}
+  NUM_WORKERS: ${NUM_WORKERS:-2}
+  MAX_BATCHES: ${MAX_BATCHES:-0}
+  PYTHONPATH: /tp3d
+
 services:
-  eval-cpu:
+  # ── Local Mac ───────────────────────────────────────────────────────────
+  local-cpu-eval:
+    profiles: [local]
     build:
       context: .
       dockerfile: docker/Dockerfile.cpu
+    image: pgn3dcd-cpu:latest
     platform: linux/amd64
     shm_size: '4gb'
     volumes:
-      - ${DATA_PATH:?Set DATA_PATH in .env}:/data
-      - ${OUTPUT_PATH:-./output}:/output
+      - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
+      - ${OUTPUT_PATH:-./output}:/output:rw
     environment:
-      - PYTHONPATH=/tp3d
+      <<: *common-env
+      DEVICE: cpu
     working_dir: /tp3d
+
+  # ── GCP CPU VM ──────────────────────────────────────────────────────────
+  gcp-cpu-eval:
+    profiles: [gcp-cpu]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.cpu
+      network: host
+    image: pgn3dcd-cpu:latest
+    platform: linux/amd64
+    network_mode: host
+    shm_size: '4gb'
+    volumes:
+      - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
+      - ${OUTPUT_PATH:-./output}:/output:rw
+    environment:
+      <<: *common-env
+      DEVICE: cpu
+    working_dir: /tp3d
+
+  # ── GCP GPU VM ──────────────────────────────────────────────────────────
+  gcp-gpu-eval:
+    profiles: [gcp-gpu]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gpu
+      network: host
+    image: pgn3dcd-gpu:latest
+    platform: linux/amd64
+    network_mode: host
+    shm_size: '4gb'
+    volumes:
+      - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
+      - ${OUTPUT_PATH:-./output}:/output:rw
+    environment:
+      <<: *common-env
+      DEVICE: cuda
+      BATCH_SIZE: ${BATCH_SIZE:-10}
+      NUM_WORKERS: ${NUM_WORKERS:-4}
+    working_dir: /tp3d
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

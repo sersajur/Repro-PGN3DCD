@@ -2,6 +2,13 @@ FROM ubuntu:bionic
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Use GCP regional mirror (fast from within GCP) + apt retries for reliability
+RUN sed -i \
+      -e 's|http://archive.ubuntu.com/ubuntu|http://europe-west4.gce.archive.ubuntu.com/ubuntu|g' \
+      -e 's|http://security.ubuntu.com/ubuntu|http://europe-west4.gce.archive.ubuntu.com/ubuntu|g' \
+      /etc/apt/sources.list && \
+    echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80retries
+
 RUN : \
     && apt-get update \
     && apt-get install -y --no-install-recommends software-properties-common \
@@ -19,6 +26,7 @@ COPY docker/install_system.sh install_system.sh
 RUN bash install_system.sh
 
 COPY docker/install_python.sh install_python.sh
+ENV MAX_JOBS=2
 RUN bash install_python.sh cpu && rm -rf /root/.cache
 
 RUN pip3 install torch-scatter==2.0.8 torch-sparse==0.6.12 torch-cluster==1.5.9 torch-geometric==1.7.2 \
@@ -34,9 +42,10 @@ COPY torch_points3d/__init__.py torch_points3d/__init__.py
 COPY README.md README.md
 ENV SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL=True
 RUN pip3 install --no-deps . && rm -rf /root/.cache
-RUN pip3 install . && rm -rf /root/.cache
+RUN pip3 install --timeout 300 --retries 5 . && rm -rf /root/.cache
 
-RUN apt-get update \
+RUN rm -f /etc/apt/sources.list.d/*.list && \
+    apt-get update \
     && apt-get install -y --no-install-recommends libusb-1.0-0 libgomp1 libgl1-mesa-glx libglib2.0-0 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
