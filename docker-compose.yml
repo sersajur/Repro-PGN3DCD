@@ -1,9 +1,12 @@
 # docker-compose.yml
 # ---------------------------------------------------------------------------
-# Usage:
+# Eval:
 #   Local Mac:   docker compose --profile local up local-cpu-eval
 #   GCP CPU VM:  docker compose --profile gcp-cpu --env-file .env.gcp up gcp-cpu-eval
 #   GCP GPU VM:  docker compose --profile gcp-gpu --env-file .env.gcp up gcp-gpu-eval
+# Train:
+#   Local Mac:   docker compose --profile local up local-cpu-train
+#   GCP GPU VM:  docker compose --profile gcp-gpu --env-file .env.gcp up gcp-gpu-train
 # ---------------------------------------------------------------------------
 
 x-common-env: &common-env
@@ -72,6 +75,52 @@ services:
       BATCH_SIZE: ${BATCH_SIZE:-10}
       NUM_WORKERS: ${NUM_WORKERS:-4}
     working_dir: /tp3d
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # ── Training ─────────────────────────────────────────────────────────────
+  local-cpu-train:
+    profiles: [local]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.cpu
+    image: pgn3dcd-cpu:latest
+    platform: linux/amd64
+    shm_size: '4gb'
+    volumes:
+      - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
+      - ${OUTPUT_PATH:-./output}:/output:rw
+    environment:
+      <<: *common-env
+      DEVICE: cpu
+    working_dir: /tp3d
+    command: ["trainSiamKPConv.py"]
+
+  gcp-gpu-train:
+    profiles: [gcp-gpu]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gpu
+      network: host
+    image: pgn3dcd-gpu:latest
+    platform: linux/amd64
+    network_mode: host
+    shm_size: '4gb'
+    volumes:
+      - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
+      - ${OUTPUT_PATH:-./output}:/output:rw
+    environment:
+      <<: *common-env
+      DEVICE: cuda
+      BATCH_SIZE: ${BATCH_SIZE:-10}
+      NUM_WORKERS: ${NUM_WORKERS:-4}
+    working_dir: /tp3d
+    command: ["trainSiamKPConv.py"]
     deploy:
       resources:
         reservations:

@@ -58,4 +58,5 @@ COPY . /tp3d
 WORKDIR /tp3d
 ENV PYTHONPATH=/tp3d
 
-ENTRYPOINT ["python3", "eval_simple.py"]
+ENTRYPOINT ["python3"]
+CMD ["eval_simple.py"]
