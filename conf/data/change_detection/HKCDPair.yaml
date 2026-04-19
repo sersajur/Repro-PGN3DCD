@@ -19,5 +19,11 @@ data:
         size: ${data.first_subsampling}
 
 
+  nameInPly: "params"
+  num_points: 0
+  tau_1: 0.1
+  tau_2: 0.05
+  trans_thresh: 0.15
+  rot_thresh: 4
   load_preprocessed: True # False # Wether to load or not pre_transform point clouds, if not original files will be computed again
   load_trees: False # Wether to load or not kd trees if possible

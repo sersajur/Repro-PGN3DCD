@@ -65,6 +65,7 @@ services:
     image: pgn3dcd-gpu:latest
     platform: linux/amd64
     network_mode: host
+    runtime: nvidia
     shm_size: '4gb'
     volumes:
       - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
@@ -74,6 +75,7 @@ services:
       DEVICE: cuda
       BATCH_SIZE: ${BATCH_SIZE:-10}
       NUM_WORKERS: ${NUM_WORKERS:-4}
+      NVIDIA_VISIBLE_DEVICES: all
     working_dir: /tp3d
     deploy:
       resources:
@@ -110,6 +112,7 @@ services:
     image: pgn3dcd-gpu:latest
     platform: linux/amd64
     network_mode: host
+    runtime: nvidia
     shm_size: '4gb'
     volumes:
       - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
@@ -119,6 +122,7 @@ services:
       DEVICE: cuda
       BATCH_SIZE: ${BATCH_SIZE:-10}
       NUM_WORKERS: ${NUM_WORKERS:-4}
+      NVIDIA_VISIBLE_DEVICES: all
     working_dir: /tp3d
     command: ["trainSiamKPConv.py"]
     deploy:
