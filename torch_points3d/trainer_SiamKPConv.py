@@ -6,6 +6,7 @@ import torch
 import time
 import logging
 import numpy as np
+from omegaconf import OmegaConf
 
 # Import building function for model and dataset
 from torch_points3d.datasets.dataset_factory import instantiate_dataset
@@ -85,7 +86,10 @@ class Trainer:
 
         # Create model and datasets
         if not self._checkpoint.is_empty:
-            self._dataset: BaseDataset = instantiate_dataset(self._checkpoint.data_config)
+            # Override checkpoint's frozen data config with current cfg.data
+            # (paths, optional fields) while keeping checkpoint's class/structure.
+            data_cfg = OmegaConf.merge(self._checkpoint.data_config, self._cfg.data)
+            self._dataset: BaseDataset = instantiate_dataset(data_cfg)
             self._model: BaseModel = self._checkpoint.create_model(
                 self._dataset, weight_name=self._cfg.training.weight_name
             )

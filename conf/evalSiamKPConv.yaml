@@ -1,14 +1,30 @@
+defaults: # for loading the default config
+  - task: change_detection # Task performed (segmentation, classification etc...)
+    optional: True
+  - model_type: SIFT_SKP_double_pc # SIFT_SKP_double_pc siamesekpconv #siamesekpconv_cls siamencfusionkpconv siamencfusionkpconv_double_pc siamesekpconv_double_pc #siamesekpconv_unshared #siamesekpconv # Type of model to use, e.g. pointnet2, rsconv etc... 文件名称
+    optional: True
+  - dataset: HKCDPair # HKCDPair #Urb3DSimulPair # Urb3DCD DS: Urb3DSimulPair  #Urb3DCD_cls dataset: Urb3DCDPair_cls
+    optional: True
+
+  - training: defaultHKCD #defaultUrb3D defaultHKCD
+
+  - debugging: default.yaml
+
+  - data: ${defaults.0.task}/${defaults.2.dataset}
+
 pretty_print: True
-num_workers: 10
-batch_size: 10
-cuda: 1
-weight_name: "miou" # Used during resume, select with model to load from [miou, macc, acc, miou_ch..., latest]
-enable_cudnn: True
-checkpoint_dir: "/output/SiamKPConv"
+output_dir: "" # Path to the output directory
 model_name: SiamEncFusionKPConv #SiamEncFusionKPConv #SiameseKPConv # SiameseKPConvUnshared SiameseKPConv
 precompute_multi_scale: False # Compute multiscate features on cpu for faster training / inference
 enable_dropout: False
 voting_runs: 1
+
+training:
+    cuda: 0
+    batch_size: 10
+    num_workers: 10
+    enable_cudnn: True
+    weight_name: "miou"
 
 tracker_options: # Extra options for the tracker
   full_pc: True
@@ -18,4 +34,4 @@ tracker_options: # Extra options for the tracker
 
 hydra:
   run:
-    dir: ${checkpoint_dir}/eval/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${output_dir}/eval_${model_name}_${now:%Y-%m-%d_%H-%M-%S}

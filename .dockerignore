@@ -1,24 +1,33 @@
 # Version control & IDE
 .git
+.gitignore
 .idea
+.pycharm_helpers
 .claude
 .venv
+
 __pycache__
+**/__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
 
 # Large data files — mounted as volumes, not baked into the image
 *.pt
 data/
 output/
-test/
+checkpoints/
 
 # Documentation & notebooks — not needed at runtime
+test/
 docs/
 notebooks/
 *.pdf
 
 # Compose files & env configs
 docker-compose*.yml
-.env*
 
 # OS junk
 .DS_Store

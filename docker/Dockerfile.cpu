@@ -53,6 +53,3 @@ RUN rm -f /etc/apt/sources.list.d/*.list && \
 COPY . /tp3d
 WORKDIR /tp3d
 ENV PYTHONPATH=/tp3d
-
-ENTRYPOINT ["python3"]
-CMD ["eval_simple.py"]
