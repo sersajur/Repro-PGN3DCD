@@ -35,11 +35,12 @@ services:
     platform: linux/amd64
     shm_size: '4gb'
     volumes:
+      - ${PROJECT_PATH:-.}:/tp3d:rw
       - ${CHECKPOINTS_DIR:?Set CHECKPOINTS_DIR in .env}:/checkpoints:ro
       - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
       - ${OUTPUT_PATH:?Set OUTPUT_PATH in .env}:/output:rw
     working_dir: /tp3d
-    command: ["python3", "eval_SiamKPConv.py", "training.checkpoint_dir=/checkpoints", "model_name=PGN3DCD_patched", "output_dir=/output"]
+    command: ["python3", "eval_SiamKPConv.py", "training.checkpoint_dir=/checkpoints", "model_name=PGN3DCD_patched", "output_dir=/output", "training.weight_name=miou"]
 
   local-cpu-shell:
     profiles: [local]
@@ -122,16 +123,12 @@ services:
     runtime: nvidia
     shm_size: '4gb'
     volumes:
+      - ${PROJECT_PATH:-.}:/tp3d:rw
+      - ${CHECKPOINTS_DIR:?Set CHECKPOINTS_DIR in .env}:/checkpoints:ro
       - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
-      - ${OUTPUT_PATH:-./output}:/output:rw
-    environment:
-      <<: *common-env
-      DEVICE: cuda
-      BATCH_SIZE: ${BATCH_SIZE:-10}
-      NUM_WORKERS: ${NUM_WORKERS:-4}
-      NVIDIA_VISIBLE_DEVICES: all
+      - ${OUTPUT_PATH:?Set OUTPUT_PATH in .env}:/output:rw
     working_dir: /tp3d
-    command: ["python3", "eval_simple.py"]
+    command: [ "python3", "eval_SiamKPConv.py", "training.checkpoint_dir=/checkpoints", "model_name=SiamKPConvWithPriorUncertainty", "output_dir=/output", "training.weight_name=miou_ch" ]
     deploy:
       resources:
         reservations:
@@ -139,57 +136,6 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-
-  # ── Eval (uncertainty model) ──────────────────────────────────────────────
-  gcp-gpu-eval-uncertainty:
-    profiles: [gcp-gpu]
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.gpu
-      network: host
-    image: pgn3dcd-gpu:latest
-    platform: linux/amd64
-    network_mode: host
-    runtime: nvidia
-    shm_size: '4gb'
-    volumes:
-      - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
-      - ${OUTPUT_PATH:-./output}:/output:rw
-    environment:
-      <<: *common-env
-      CHECKPOINT_PATH: /output/uncertainty_training/SiamKPConvWithPriorUncertainty.pt
-      OUTPUT_DIR: /output/uncertainty_eval
-      DEVICE: cuda
-      BATCH_SIZE: ${BATCH_SIZE:-10}
-      NUM_WORKERS: ${NUM_WORKERS:-4}
-      NVIDIA_VISIBLE_DEVICES: all
-    working_dir: /tp3d
-    command: ["python3", "eval_simple.py"]
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-
-  # ── Training ─────────────────────────────────────────────────────────────
-  local-cpu-train:
-    profiles: [local]
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.cpu
-    image: pgn3dcd-cpu:latest
-    platform: linux/amd64
-    shm_size: '4gb'
-    volumes:
-      - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
-      - ${OUTPUT_PATH:-./output}:/output:rw
-    environment:
-      <<: *common-env
-      DEVICE: cpu
-    working_dir: /tp3d
-    command: ["python3", "trainSiamKPConv.py"]
 
   gcp-gpu-train:
     profiles: [gcp-gpu]
@@ -203,14 +149,10 @@ services:
     runtime: nvidia
     shm_size: '4gb'
     volumes:
+      - ${PROJECT_PATH:-.}:/tp3d:rw
+      - ${CHECKPOINTS_DIR:?Set CHECKPOINTS_DIR in .env}:/checkpoints:ro
       - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
-      - ${OUTPUT_PATH:-./output}:/output:rw
-    environment:
-      <<: *common-env
-      DEVICE: cuda
-      BATCH_SIZE: ${BATCH_SIZE:-10}
-      NUM_WORKERS: ${NUM_WORKERS:-4}
-      NVIDIA_VISIBLE_DEVICES: all
+      - ${OUTPUT_PATH:?Set OUTPUT_PATH in .env}:/output:rw
     working_dir: /tp3d
     command: ["python3", "trainSiamKPConv.py"]
     deploy:
@@ -220,51 +162,4 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-
-  # ── Uncertainty model training ───────────────────────────────────────
-  local-cpu-train-uncertainty:
-    profiles: [local]
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.cpu
-    image: pgn3dcd-cpu:latest
-    platform: linux/amd64
-    shm_size: '4gb'
-    volumes:
-      - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
-      - ${OUTPUT_PATH:-./output}:/output:rw
-    environment:
-      <<: *common-env
-      DEVICE: cpu
-    working_dir: /tp3d
-    command: ["python3", "trainSiamKPConvWithPriorUncertainty.py"]
-
-  gcp-gpu-train-uncertainty:
-    profiles: [gcp-gpu]
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.gpu
-      network: host
-    image: pgn3dcd-gpu:latest
-    platform: linux/amd64
-    network_mode: host
-    runtime: nvidia
-    shm_size: '4gb'
-    volumes:
-      - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
-      - ${OUTPUT_PATH:-./output}:/output:rw
-    environment:
-      <<: *common-env
-      DEVICE: cuda
-      BATCH_SIZE: ${BATCH_SIZE:-16}
-      NUM_WORKERS: ${NUM_WORKERS:-6}
-      NVIDIA_VISIBLE_DEVICES: all
-    working_dir: /tp3d
-    command: ["python3", "trainSiamKPConvWithPriorUncertainty.py", "eval_frequency=1", "training.batch_size=10", "training.num_workers=10", "training.optim.base_lr=0.01", "hydra.run.dir=/output/uncertainty_training"]
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+  # ────────────────────────────────────────────────────────────────────────
