@@ -75,6 +75,10 @@ class Checkpoint:
         else:
             chkp_name = os.path.basename(checkpoint_file)
             if resume:
+                # Side effect: copies the source .pt into hydra.run.dir under the same
+                # filename (e.g. PGN3DCD_patched.pt appears next to .hydra/ and the
+                # tracker outputs). This is why the run directory ends up with a
+                # ~1 GB checkpoint copy after eval.
                 shutil.copyfile(
                     checkpoint_file, chkp_name
                 )  # Copy checkpoint to new run directory to make sure we don't override

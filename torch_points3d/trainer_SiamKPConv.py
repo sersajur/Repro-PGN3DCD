@@ -72,6 +72,7 @@ class Trainer:
 
         # Start Wandb if public
         if self.wandb_log:
+            log.info(f"wandb_log : {self.wandb_log}")
             Wandb.launch(self._cfg, self._cfg.wandb.public and self.wandb_log)
 
         # Checkpoint
@@ -194,6 +195,8 @@ class Trainer:
                 self._test_epoch(epoch, "test")
 
     def _finalize_epoch(self, epoch):
+        # Triggers all output artifacts (PLY point clouds, res.txt, confusion matrices)
+        # to be written by the active tracker into os.getcwd() (= hydra.run.dir).
         self._tracker.finalise(**self.tracker_options)
         if self._is_training:
             metrics = self._tracker.publish(epoch)

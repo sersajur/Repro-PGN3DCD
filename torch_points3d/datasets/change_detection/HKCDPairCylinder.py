@@ -28,6 +28,8 @@ from torch_points3d.metrics.hkCD_tracker import HKCDTracker
 
 from matplotlib import cm
 
+log = logging.getLogger(__name__)
+
 IGNORE_LABEL: int = -1
 
 URB3DCD_NUM_CLASSES = 2
@@ -401,10 +403,10 @@ class HKCDSphere(HKCD):
         if self._sample_per_epoch > 0:
             self._centres_for_sampling = torch.cat(self._centres_for_sampling, 0)
             uni, uni_counts = np.unique(np.asarray(self._centres_for_sampling[:, -1]), return_counts=True)
-            print(uni_counts)
+            log.info(f"centre counts per area: {uni_counts}")
             uni_counts = np.sqrt(uni_counts.mean() / uni_counts)
             self._label_counts = uni_counts / np.sum(uni_counts)
-            print(self._label_counts)
+            log.info(f"normalised sampling weights: {self._label_counts}")
             self._labels = uni
             self.weight_classes = torch.from_numpy(self._label_counts).type(torch.float)
             if self.fix_cyl:
@@ -413,7 +415,7 @@ class HKCDSphere(HKCD):
                 np.random.seed(1)
                 chosen_labels = np.random.choice(self._labels, p=self._label_counts, size=(self._sample_per_epoch, 1))
                 uni, uni_counts = np.unique(chosen_labels, return_counts=True)
-                print("fixed cylinder", uni, uni_counts)
+                log.info(f"fixed cylinder labels={uni} counts={uni_counts}")
                 for c in range(uni.shape[0]):
                     valid_centres = self._centres_for_sampling[self._centres_for_sampling[:, -1] == uni[c]]
                     centres_idx = np.random.randint(low = 0, high=valid_centres.shape[0], size=(uni_counts[c],1))

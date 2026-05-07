@@ -20,11 +20,10 @@ enable_dropout: False
 voting_runs: 1
 
 training:
-    cuda: 0
-    batch_size: 10
-    num_workers: 10
-    enable_cudnn: True
-    weight_name: "miou"
+  cuda: 0
+  batch_size: 10
+  num_workers: 10
+  enable_cudnn: True
 
 tracker_options: # Extra options for the tracker
   full_pc: True
@@ -35,3 +34,22 @@ tracker_options: # Extra options for the tracker
 hydra:
   run:
     dir: ${output_dir}/eval_${model_name}_${now:%Y-%m-%d_%H-%M-%S}
+  job_logging:
+    version: 1
+    disable_existing_loggers: false
+    formatters:
+      detailed:
+        format: "[%(asctime)s.%(msecs)03d][%(levelname).1s]%(name)s: %(message)s"
+        datefmt: "%Y-%m-%dT%H:%M:%S"
+    handlers:
+      console:
+        class: logging.StreamHandler
+        formatter: detailed
+        stream: ext://sys.stdout
+      file:
+        class: logging.FileHandler
+        formatter: detailed
+        filename: ${hydra.job.name}.log
+    root:
+      level: INFO
+      handlers: [console, file]

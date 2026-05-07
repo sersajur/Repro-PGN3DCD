@@ -1,10 +1,14 @@
 # Copyright (c) 2018 Andy Zeng
 # Taken from https://github.com/andyzeng/tsdf-fusion-python
 
+import logging
+
 import numpy as np
 
 from numba import njit, prange
 from skimage import measure
+
+log = logging.getLogger(__name__)
 
 try:
     import pycuda.driver as cuda
@@ -12,8 +16,7 @@ try:
     from pycuda.compiler import SourceModule
     FUSION_GPU_MODE = 1
 except Exception as err:
-    print('Warning: {}'.format(err))
-    print('Failed to import PyCUDA. Running fusion in CPU mode.')
+    log.warning(f'PyCUDA import failed ({err}); running fusion in CPU mode.')
     FUSION_GPU_MODE = 0
 
 

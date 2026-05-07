@@ -1,5 +1,9 @@
+import logging
+
 from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
+
+log = logging.getLogger(__name__)
 
 def resolve_model(model_config, dataset, tested_task):
     """Parses the model config and evaluates any expression that may contain constants"""
@@ -44,6 +48,6 @@ def resolve(obj, constants):
                     # we tried to resolve a string which is also a builtin (e.g. max)
                     pass
                 except Exception as e:
-                    print(e)
+                    log.warning(f"resolve_model: failed to evaluate expression: {e}")
 
     return False

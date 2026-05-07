@@ -194,6 +194,10 @@ class HKCDTracker(CDTracker):
 
 
                     if (self._stage == 'test' or self._stage == 'val') and save_pc:
+                        # Per-pair PLY export to <hydra.run.dir>/<name_test><cloud_subdir>/.
+                        # cloud_subdir is the parent folder name of the test cloud
+                        # (e.g. "11-NE-12B"). With name_test="" the layout is just
+                        # <run.dir>/<cloud_subdir>/{pointCloud0.ply, pointCloud1.ply}.
                         print('Saving PC %s' % (str(i)))
                         if saving_path is None:
                             saving_path = os.path.join(os.getcwd(), name_test)
@@ -227,18 +231,25 @@ class HKCDTracker(CDTracker):
             self.metric_full_cumul = {"acc": acc, "macc": macc, "mIoU": miou, "miou_ch": miou_ch,
                                       "IoU per class": iou_per_class, "acc_per_class": acc_per_class}
 
+            # Aggregate output dir: <hydra.run.dir>/<stage>/<name_test>/
+            # Holds res.txt (metrics) and the two confusion matrix PNGs below.
             saving_path = os.path.join(os.getcwd(), self._stage, name_test)
             if not os.path.exists(saving_path):
                 os.makedirs(saving_path)
 
             name_classes = [name for name, i in self._ds.class_labels.items()]
+            # Writes <saving_path>/res.txt with overall and per-area metrics.
             self.save_metrics(name_test=name_test, saving_path=saving_path)
             try:
+                # Intends to write <saving_path>cm.png (PC0 confusion matrix), but
+                # plot_confusion_matrix often raises and the bare except below silently
+                # drops it — in practice cm.png is usually missing from the output dir.
                 self.plot_confusion_matrix(gt_tot, pred_tot, normalize=True, saving_path=saving_path + "cm.png",
                                            name_classes=name_classes)
             except:
                 pass
             try:
+                # Same as above for PC1 (target) — produces cm2.png when it doesn't crash.
                 self.plot_confusion_matrix(gt_tot_target, pred_tot_target, normalize=True, saving_path=saving_path + "cm2.png")
             except:
                 pass
