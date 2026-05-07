@@ -1,14 +1,17 @@
 """
 Inspect a PGN3DCD checkpoint file and print its contents.
+Optionally plot validation mIoU / mIoU_ch progression across epochs.
 
 Usage:
     python pgn3dcd_experiments/inspect_checkpoint.py /path/to/checkpoint.pt
+    python pgn3dcd_experiments/inspect_checkpoint.py /path/to/checkpoint.pt --plot val_miou.png
     python pgn3dcd_experiments/inspect_checkpoint.py  # uses CHECKPOINT_PATH env var
 
 Inside Docker:
     docker compose --profile local run --rm local-cpu-eval \
         pgn3dcd_experiments/inspect_checkpoint.py /data/SiamEncFusionKPConv.pt
 """
+import argparse
 import sys
 import os
 import json
@@ -81,10 +84,16 @@ def inspect_checkpoint(path):
             if best_metrics:
                 print(f"\n  Best validation metrics (tracked across all epochs):")
                 for k, v in sorted(best_metrics.items()):
+                    metric_name = k[len("best_"):]
+                    epoch_hit = next(
+                        (r["epoch"] for r in val_stats if r.get(metric_name) == v),
+                        None,
+                    )
+                    epoch_str = f" (epoch {epoch_hit})" if epoch_hit is not None else ""
                     if isinstance(v, float):
-                        print(f"    {k}: {v:.6f}")
+                        print(f"    {k}: {v:.6f}{epoch_str}")
                     else:
-                        print(f"    {k}: {v}")
+                        print(f"    {k}: {v}{epoch_str}")
 
     # --- Optimizer ---
     if "optimizer" in ckp:
@@ -140,14 +149,58 @@ def inspect_checkpoint(path):
             print(f"  {k}: {type(v).__name__} — {repr(v)[:200]}")
 
 
-if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        checkpoint_path = sys.argv[1]
-    else:
-        checkpoint_path = os.environ.get("CHECKPOINT_PATH", "/data/SiamEncFusionKPConv.pt")
+def plot_metrics(ckp, output_path):
+    import matplotlib.pyplot as plt
 
-    if not os.path.exists(checkpoint_path):
-        print(f"Error: checkpoint not found at {checkpoint_path}")
+    stats = ckp.get("stats", {})
+    series = [
+        ("val",   "miou",    "o", "-"),
+        ("val",   "miou_ch", "s", "-"),
+        ("train", "miou",    "o", "--"),
+        ("train", "miou_ch", "s", "--"),
+        ("train", "loss",    "x", ":"),
+        ("val",   "loss",    "x", ":"),
+    ]
+
+    fig, (ax_metric, ax_loss) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    for stage, key, marker, ls in series:
+        records = stats.get(stage, [])
+        if not records or key not in records[0]:
+            print(f"  ! '{stage}.{key}' missing, skipping")
+            continue
+        epochs = [r.get("epoch") for r in records]
+        values = [r.get(key) for r in records]
+        target_ax = ax_loss if key == "loss" else ax_metric
+        target_ax.plot(epochs, values, marker=marker, linestyle=ls, label=f"{stage}_{key}")
+
+    ax_metric.set_ylabel("mIoU")
+    ax_metric.set_title("Train / Val mIoU progression")
+    ax_metric.grid(True, alpha=0.3)
+    ax_metric.legend()
+
+    ax_loss.set_xlabel("epoch")
+    ax_loss.set_ylabel("loss")
+    ax_loss.grid(True, alpha=0.3)
+    ax_loss.legend()
+
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=120)
+    print(f"Saved plot: {output_path}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
+    parser.add_argument("checkpoint", help="Path to checkpoint .pt")
+    parser.add_argument("--plot", metavar="PATH",
+                        help="If given, save val mIoU/mIoU_ch progression plot to PATH")
+    args = parser.parse_args()
+
+    if not os.path.exists(args.checkpoint):
+        print(f"Error: checkpoint not found at {args.checkpoint}")
         sys.exit(1)
 
-    inspect_checkpoint(checkpoint_path)
+    inspect_checkpoint(args.checkpoint)
+
+    if args.plot:
+        ckp = torch.load(args.checkpoint, map_location="cpu")
+        plot_metrics(ckp, args.plot)
