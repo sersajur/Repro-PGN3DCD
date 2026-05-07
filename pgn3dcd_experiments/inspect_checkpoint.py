@@ -43,6 +43,20 @@ def inspect_checkpoint(path):
     # --- Top-level keys ---
     print(f"\nTop-level keys: {sorted(ckp.keys())}")
 
+    # --- Reproducibility stamp ---
+    repro = ckp.get("run_config", {}).get("_repro_stamp")
+    if repro:
+        print("\n" + "=" * 70)
+        print("REPRODUCIBILITY STAMP")
+        print("=" * 70)
+        for key in ("seed", "git_head", "python", "torch", "numpy", "cuda_available"):
+            if key in repro:
+                print(f"  {key}: {repro[key]}")
+        if repro.get("git_dirty"):
+            print(f"  git_dirty:\n{repro['git_dirty']}")
+        if repro.get("gpus"):
+            print(f"  gpus:\n{repro['gpus']}")
+
     # --- Run config ---
     if "run_config" in ckp:
         print("\n" + "=" * 70)

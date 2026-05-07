@@ -3,12 +3,16 @@ import logging
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import OmegaConf
 from torch_points3d.trainer_SiamKPConv import Trainer
+from torch_points3d.utils.repro import set_deterministic, collect_repro_stamp, log_repro_stamp
 
 log = logging.getLogger(__name__)
 
 @hydra.main(config_path="conf", config_name="evalSiamKPConv")
 def main(cfg):
     OmegaConf.set_struct(cfg, False)  # This allows getattr and hasattr methods to function correctly
+    seed = cfg.get("seed", 42)
+    set_deterministic(seed=seed)
+    log_repro_stamp(collect_repro_stamp(seed=seed))
     if cfg.pretty_print:
         log.info(f"Start evaluation with config:\n{OmegaConf.to_yaml(cfg)}")
 
