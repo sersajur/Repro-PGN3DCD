@@ -1,0 +1,56 @@
+defaults: # for loading the default config
+  - task: change_detection
+    optional: True
+  - model_type: SiamKPConvWithPriorUncertainty
+    optional: True
+  - dataset: HKCDPair
+    optional: True
+
+  - training: defaultHKCD
+
+  - debugging: default.yaml
+
+  - data: ${defaults.0.task}/${defaults.2.dataset}
+  - models: ${defaults.0.task}/${defaults.1.model_type}
+
+pretty_print: True
+output_dir: ""
+model_name: SiamKPConvWithPriorUncertainty
+precompute_multi_scale: False
+enable_dropout: False
+voting_runs: 1
+
+training:
+  cuda: 0
+  batch_size: 10
+  num_workers: 10
+  enable_cudnn: True
+
+tracker_options:
+  full_pc: True
+  full_res: True
+  save_pc: True
+  name_test: ""
+
+hydra:
+  run:
+    dir: ${output_dir}/eval_${model_name}_${now:%Y-%m-%d_%H-%M-%S}
+  job_logging:
+    version: 1
+    disable_existing_loggers: false
+    formatters:
+      detailed:
+        format: "[%(asctime)s.%(msecs)03d][%(levelname).1s]%(name)s: %(message)s"
+        datefmt: "%Y-%m-%dT%H:%M:%S"
+    handlers:
+      console:
+        class: logging.StreamHandler
+        formatter: detailed
+        stream: ext://sys.stdout
+      file:
+        class: logging.FileHandler
+        formatter: detailed
+        filename: ${hydra.job.name}.log
+    root:
+      level: INFO
+      handlers: [console, file]
