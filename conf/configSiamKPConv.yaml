@@ -23,9 +23,33 @@ update_lr_scheduler_on: "on_epoch" # ["on_epoch", "on_num_batch", "on_num_sample
 selection_stage: ""
 pretty_print: True
 eval_frequency: 1
+output_dir: "" # Path to the output directory
 
 tracker_options: # Extra options for the tracker
   full_pc: False
   full_res: False
   make_submission: False
   track_boxes: False
+
+hydra:
+  run:
+    dir: ${output_dir}/train_${model_name}_${now:%Y-%m-%d_%H-%M-%S}
+  job_logging:
+    version: 1
+    disable_existing_loggers: false
+    formatters:
+      detailed:
+        format: "[%(asctime)s.%(msecs)03d][%(levelname).1s]%(name)s: %(message)s"
+        datefmt: "%Y-%m-%dT%H:%M:%S"
+    handlers:
+      console:
+        class: logging.StreamHandler
+        formatter: detailed
+        stream: ext://sys.stdout
+      file:
+        class: logging.FileHandler
+        formatter: detailed
+        filename: ${hydra.job.name}.log
+    root:
+      level: INFO
+      handlers: [console, file]
