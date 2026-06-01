@@ -48,6 +48,22 @@ services:
       - ${OUTPUT_PATH:?Set OUTPUT_PATH in .env}:/output:rw
     working_dir: /tp3d
     entrypoint: [ "sleep", "infinity" ]
+
+  local-eval-uncertainty:
+    profiles: [local]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.cpu
+    image: pgn3dcd-cpu:latest
+    platform: linux/amd64
+    shm_size: '4gb'
+    volumes:
+      - ${PROJECT_PATH:-.}:/tp3d:rw
+      - ${CHECKPOINTS_DIR:?Set CHECKPOINTS_DIR in .env}:/checkpoints:ro
+      - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
+      - ${OUTPUT_PATH:?Set OUTPUT_PATH in .env}:/output:rw
+    working_dir: /tp3d
+    command: [ "python3", "eval_SiamKPConvWithPriorUncertainty.py", "training.checkpoint_dir=/checkpoints", "model_name=SiamKPConvWithPriorUncertainty_retrained", "output_dir=/output", "training.weight_name=miou_ch" ]
   # ────────────────────────────────────────────────────────────────────────
 
   # ── GCP CPU VM ──────────────────────────────────────────────────────────
