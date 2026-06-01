@@ -18,14 +18,16 @@ Key changes vs. the base model
         confidence = 1 − σ²_total / 0.25
         mask = confidence · μ + (1 − confidence) · 0.5
 
-2.  ``forward``  →  appends σ²_total as an extra feature channel
-    *after* replacing channel-0 with μ, so the input tensor goes from
-    shape (N, FEAT+1) → (N, FEAT+2).
+2.  ``forward``  →  overwrites channel 0 (the ``add_ones`` bias channel)
+    with μ — same slot the parent model uses for its 0.5·D + 0.5·C
+    fusion — and appends σ²_total as a single extra feature channel.
+    Input tensor goes from shape (N, FEAT) = (N, 4) to (N, FEAT+1) = (N, 5).
 
-3.  Config:  FEAT = 5  (was 3) so that FEAT+1 = 6 covers
-    [ones, R, G, B, μ, σ²_total].
-    Unlike the original model, we keep the ones (bias) channel intact
-    and append the new signals at the end.
+3.  Config:  FEAT = 4  (was 3) so that FEAT+1 = 5 covers
+    [μ, R, G, B, σ²_total].
+    The ones (bias) channel is reused as the μ slot instead of being
+    kept as a constant — BatchNorm provides bias-emulation downstream,
+    so the slot is better spent on an informative signal.
 
 All changes are **non-parametric** — zero new learnable parameters.
 """
@@ -144,10 +146,15 @@ class SiamKPConvWithPriorUncertainty(SiamEncFusionKPConv):
         data0.mask = mask0
         data1.mask = mask1
 
-        # Keep ones (bias channel) intact; append μ and σ²_total
-        # Input: [ones, R, G, B] → [ones, R, G, B, μ, σ²_total]
-        data0.x = torch.cat([data0.x, mu0, var0], dim=1)
-        data1.x = torch.cat([data1.x, mu1, var1], dim=1)
+        # Overwrite ones (bias channel) with μ; append σ²_total as extra channel.
+        # Input: [ones, R, G, B] → [μ, R, G, B, σ²_total]
+        # Frees the wasted ones-channel (which only emulated a bias term that
+        # BatchNorm already provides downstream) and lets the first KPConv layer
+        # spend all of its in-channel weights on informative signals.
+        data0.x[:, 0] = mu0.squeeze(-1)
+        data1.x[:, 0] = mu1.squeeze(-1)
+        data0.x = torch.cat([data0.x, var0], dim=1)
+        data1.x = torch.cat([data1.x, var1], dim=1)
 
         # ── Encoder / decoder (unchanged from base) ──────────────────
         data0 = self.down_modules_1[0](data0, precomputed=self.pre_computed)

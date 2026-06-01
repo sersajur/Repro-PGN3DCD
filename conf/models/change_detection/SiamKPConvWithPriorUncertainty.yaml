@@ -2,7 +2,8 @@ models:
   # SiamKPConvWithPriorUncertainty
   # Extends SiamEncFusionKPConv with Bayesian inverse-variance weighted
   # prior fusion and an extra σ²_total input channel.
-  # FEAT bumped from 3 → 5 so that FEAT+1 = 6 = [ones, R, G, B, μ, σ²_total]
+  # FEAT bumped from 3 → 4 so that FEAT+1 = 5 = [μ, R, G, B, σ²_total]
+  # (μ overwrites the add_ones bias channel; σ²_total is appended.)
   SiamKPConvWithPriorUncertainty:
     path_pretrained: ""
     weight_name: "best_miou_ch"
@@ -11,7 +12,7 @@ models:
     use_category: ${data.use_category}
     define_constants:
       in_grid_size: ${data.first_subsampling}
-      FEAT: 5
+      FEAT: 4
       in_feat: 64
       bn_momentum: 0.02
     down_conv_1:
