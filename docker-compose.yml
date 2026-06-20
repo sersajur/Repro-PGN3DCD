@@ -189,7 +189,7 @@ services:
       - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
       - ${OUTPUT_PATH:?Set OUTPUT_PATH in .env}:/output:rw
     working_dir: /tp3d
-    command: [ "python3", "eval_SiamKPConvWithPriorUncertainty.py", "training.checkpoint_dir=/checkpoints", "model_name=SiamKPConvWithPriorUncertainty_retrained", "output_dir=/output", "training.weight_name=miou_ch" ]
+    command: [ "python3", "eval_SiamKPConvWithPriorUncertainty.py", "training.checkpoint_dir=/checkpoints", "model_name=SiamKPConvWithPriorUncertainty_5F", "output_dir=/output", "training.weight_name=miou_ch" ]
     deploy:
       resources:
         reservations:
@@ -215,7 +215,7 @@ services:
       - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
       - ${OUTPUT_PATH:?Set OUTPUT_PATH in .env}:/output:rw
     working_dir: /tp3d
-    command: ["python3", "trainSiamKPConvWithPriorUncertainty.py", "output_dir=/output/SiamKPConvWithPriorUncertainty"]
+    command: ["python3", "trainSiamKPConvWithPriorUncertainty.py", "output_dir=/output/SiamKPConvWithPriorUncertainty5F"]
     deploy:
       resources:
         reservations:
