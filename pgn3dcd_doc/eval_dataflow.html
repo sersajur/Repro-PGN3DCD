@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <title>eval_SiamKPConv — дата-флоу</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 24px;
+      background: #fafafa;
+      color: #222;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 22px;
+    }
+    h2 {
+      margin: 32px 0 8px;
+      font-size: 18px;
+      color: #444;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 4px;
+    }
+    .legend {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+    .legend span {
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+    .ext   { background: #fff3cd; }
+    .proc  { background: #d1e7ff; }
+    .data  { background: #e2f0d9; }
+    .model { background: #f8d7da; }
+    .out   { background: #e2d5f0; }
+    .controls {
+      margin-bottom: 8px;
+      font-size: 13px;
+      color: #666;
+    }
+    .mermaid {
+      background: white;
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      overflow-x: auto;
+    }
+    code {
+      background: #eee;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>eval_SiamKPConv — дата-флоу пайплайну</h1>
+<p class="controls">Усі прямокутники — процеси / об'єкти. Над/під стрілками — структура переданих даних (форми тензорів, ключі).</p>
+
+<div class="legend">
+  <span class="ext">Файли / зовнішнє</span>
+  <span class="proc">Процес</span>
+  <span class="data">Дані в пам'яті</span>
+  <span class="model">Модель / ваги</span>
+  <span class="out">Артефакти виходу</span>
+</div>
+
+<h2>1. Загальний пайплайн</h2>
+<div class="mermaid">
+flowchart TD
+    CLI["CLI<br/><code>python eval_SiamKPConv.py [overrides]</code>"]:::ext
+    YAML["conf/evalSiamKPConv.yaml<br/>+ defaults (task / model_type / dataset / training / data)"]:::ext
+    CKPT[("&lt;checkpoint_dir&gt;/&lt;model_name&gt;.pt<br/>state_dict + run_config + data_config")]:::ext
+    PLY0[("&lt;dataTestFile&gt;/&lt;scene&gt;/pointCloud0.ply<br/>x,y,z,r,g,b,scalar_cd_type")]:::ext
+    PLY1[("&lt;dataTestFile&gt;/&lt;scene&gt;/pointCloud1.ply")]:::ext
+    PRECACHE[("&lt;preprocessed_dir&gt;/Test/<br/>pc0_&lt;i&gt;.pt, pc1_&lt;i&gt;.pt<br/>tp3DTree/*.p")]:::ext
+
+    MAIN["main()<br/>seed → set_deterministic → log_repro_stamp"]:::proc
+    INIT["Trainer._initialize_trainer<br/>device, checkpoint, dataset, model, dataloader, tracker"]:::proc
+    EVAL["Trainer.eval() → _test_epoch('test')<br/>цикл по test_dataloaders × voting_runs"]:::proc
+
+    SETIN["model.set_input(PairBatch, device)"]:::model
+    FWD["model.forward()<br/>SiamEncFusionKPConv (KPConv U-Net + Siamese-diff)"]:::model
+    TRACK["tracker.track(model, data, full_pc=True)"]:::proc
+    FIN["tracker.finalise(save_pc=True, full_res=True)"]:::proc
+
+    OUT_PLY[("&lt;run.dir&gt;/&lt;scene&gt;/pointCloud0.ply, pointCloud1.ply<br/>+ pred (u2) + sf=probability (f4)")]:::out
+    OUT_RES[("&lt;run.dir&gt;/test/res.txt<br/>метрики: acc, macc, mIoU, miou_ch, per-class")]:::out
+    OUT_CM[("&lt;run.dir&gt;/test/cm.png, cm2.png<br/>(опційно, часто гасяться bare-except)")]:::out
+    OUT_LOG[("&lt;run.dir&gt;/&lt;job_name&gt;.log<br/>&lt;run.dir&gt;/.hydra/")]:::out
+
+    CLI --> MAIN
+    YAML --> MAIN
+    MAIN --> INIT
+    CKPT --> INIT
+    PLY0 --> INIT
+    PLY1 --> INIT
+    PRECACHE --> INIT
+    INIT -- "model (weights loaded)<br/>dataset (test only)<br/>tracker (HKCDTracker)" --> EVAL
+    EVAL -- "PairBatch (B=10)" --> SETIN
+    SETIN -- "input0, input1, labels0, labels1" --> FWD
+    FWD -- "output0:[b_n0,C], output1:[b_n1,C]<br/>log-probabilities" --> TRACK
+    TRACK -- "self._areas[i].votes / prediction_count<br/>(акумулятор на повних сценах)" --> FIN
+    FIN --> OUT_PLY
+    FIN --> OUT_RES
+    FIN --> OUT_CM
+    EVAL --> OUT_LOG
+
+    classDef ext   fill:#fff3cd,stroke:#d6a307,color:#222
+    classDef proc  fill:#d1e7ff,stroke:#3573b9,color:#222
+    classDef data  fill:#e2f0d9,stroke:#4f8a3a,color:#222
+    classDef model fill:#f8d7da,stroke:#b03a3a,color:#222
+    classDef out   fill:#e2d5f0,stroke:#6c3aa3,color:#222
+</div>
+
+<h2>2. Один елемент батчу: HKCDCylinder.get(idx) → PairBatch</h2>
+<div class="mermaid">
+flowchart TD
+    G[("grid_regular_centers<br/>[ΣM_i, 4]   (x,y,z,scene_id)")]:::data
+    GET["HKCDCylinder.get(idx)"]:::proc
+    LOAD["_load_save(area_sel)<br/>читає pc{0,1}_&lt;i&gt;.pt + KDTree"]:::proc
+    PFULL[("Pair (повна сцена)<br/>pos:[N0,3], f:[N0,3], y:[N0]<br/>pos_target:[N1,3], f_target:[N1,3], y_target:[N1]<br/>KDTREE_KEY_PC0, KDTREE_KEY_PC1")]:::data
+    CYL["CylinderSampling(radius, centre)<br/>×2 (PC0, PC1)"]:::proc
+    PCYL[("Pair (циліндр)<br/>pos:[n0,3], x:[n0,3]=RGB, y:[n0], idx:[n0]<br/>pos_target:[n1,3], x_target:[n1,3], y_target:[n1], idx_target:[n1]<br/>area: int")]:::data
+    NORM["pair.normalise()<br/>спільний min(xyz) для PC0+PC1"]:::proc
+    COLL["DataLoader collate<br/>PairBatch.from_data_list (B=10)"]:::proc
+    PB[("PairBatch<br/>pos:[b_n0,3], x:[b_n0,3], y:[b_n0], idx:[b_n0]<br/>batch:[b_n0], ptr:[B+1]<br/>pos_target:[b_n1,3], x_target:[b_n1,3], y_target:[b_n1]<br/>idx_target:[b_n1], batch_target:[b_n1], ptr_target:[B+1]<br/>area:[B]")]:::data
+
+    G --> GET
+    GET -- "centre:[3], area_sel:int" --> LOAD
+    LOAD --> PFULL
+    PFULL --> CYL
+    CYL --> PCYL
+    PCYL --> NORM
+    NORM --> COLL
+    COLL --> PB
+
+    classDef proc fill:#d1e7ff,stroke:#3573b9,color:#222
+    classDef data fill:#e2f0d9,stroke:#4f8a3a,color:#222
+</div>
+
+<h2>3. Forward-прохід Siamese KPConv-моделі</h2>
+<div class="mermaid">
+flowchart TD
+    PB[("PairBatch<br/>(блок 2)")]:::data
+    SETIN["model.set_input<br/>data.x = add_ones(pos, x) → [b_n*,4]"]:::model
+    IN0[("input0: pos:[b_n0,3], x:[b_n0,4], batch, idx, area")]:::data
+    IN1[("input1: pos:[b_n1,3], x:[b_n1,4], batch, idx")]:::data
+
+    KNN1["knn(PC0↔PC1, k=1)<br/>nn00, nn10"]:::proc
+    MASK["get_mask_v2(pos, color, thresholds)<br/>dis-маска (геометрія + RGB)"]:::proc
+    RW["x[:,0] ← dis-mask"]:::proc
+
+    subgraph ENC["Енкодер (L рівнів)"]
+        D1["down_modules_1[i] (KPConv)<br/>down_modules_2[i] (KPConv)"]:::model
+        ATT["self_att_list[i] (Self-Attention)"]:::model
+        DIFF["diff0 = x0 − x1[nn00]<br/>diff1 = x1 − x0[nn10]<br/>x ← concat(x, diff)"]:::proc
+        STK[("stack_down ← [diff0, diff1]")]:::data
+        D1 --> ATT --> DIFF --> STK
+    end
+
+    subgraph DEC["Декодер (skip із stack_down)"]
+        UP["up_modules_1[i] / up_modules_2[i]<br/>upsample + skip(diff)"]:::model
+    end
+
+    FC["FC_layer<br/>Linear → BN → LeakyReLU → ... → LogSoftmax"]:::model
+    O0[("output0: [b_n0, C=2]<br/>log-probabilities PC0")]:::data
+    O1[("output1: [b_n1, C=2]<br/>log-probabilities PC1")]:::data
+
+    PB --> SETIN --> IN0
+    SETIN --> IN1
+    IN0 --> KNN1
+    IN1 --> KNN1
+    KNN1 --> MASK --> RW --> D1
+    STK --> UP
+    UP --> FC
+    FC --> O0
+    FC --> O1
+
+    classDef proc fill:#d1e7ff,stroke:#3573b9,color:#222
+    classDef data fill:#e2f0d9,stroke:#4f8a3a,color:#222
+    classDef model fill:#f8d7da,stroke:#b03a3a,color:#222
+</div>
+
+<h2>4. Трекер: акумуляція голосів і фіналізація</h2>
+<div class="mermaid">
+flowchart TD
+    O0[("output0:[b_n0,C], output1:[b_n1,C]")]:::data
+    PB[("PairBatch (з idx, idx_target, area)")]:::data
+    TOLIST["inputs.to_data_list(0)<br/>розклад на B одиничних Pair"]:::proc
+
+    LAZY{"Чи існує self._areas[area]?"}:::proc
+    INIT_AREA["lazy init:<br/>pair = _ds._load_save(area)<br/>votes:[Nfull, C-1]=0<br/>prediction_count:[Nfull]=0<br/>(аналогічно для _target)"]:::proc
+    SCATTER["scatter-add у буфер сцени:<br/>votes[idx] += pred<br/>votes_target[idx_target] += pred1<br/>prediction_count[...] += 1"]:::proc
+
+    AREAS[("self._areas[i]<br/>(акумульовані голоси на ОРИГІНАЛЬНИХ точках сцени i)")]:::data
+
+    FIN["finalise()"]:::proc
+    AGG["argmax(votes) → pred<br/>max(votes) → probability"]:::proc
+    FR{"full_res = True?"}:::proc
+    RELOAD["clouds_loader(i): сирі PLY → area_orig_*"]:::proc
+    KNNI["knn_interpolate(pred, prob → area_orig_pos, k=1)"]:::proc
+    METRIC["ConfusionMatrix<br/>acc, macc, mIoU, miou_ch,<br/>iou_per_class, acc_per_class"]:::proc
+
+    PLYOUT[("&lt;cwd&gt;/&lt;scene&gt;/pointCloud0.ply<br/>&lt;cwd&gt;/&lt;scene&gt;/pointCloud1.ply<br/>(pred + sf=prob)")]:::out
+    RESTXT[("&lt;cwd&gt;/test/res.txt")]:::out
+    CMS[("&lt;cwd&gt;/test/cm.png, cm2.png")]:::out
+
+    O0 --> TOLIST
+    PB --> TOLIST
+    TOLIST --> LAZY
+    LAZY -- "ні" --> INIT_AREA --> SCATTER
+    LAZY -- "так" --> SCATTER
+    SCATTER --> AREAS
+    AREAS --> FIN
+    FIN --> AGG
+    AGG --> FR
+    FR -- "так" --> RELOAD --> KNNI --> METRIC
+    FR -- "ні" --> METRIC
+    METRIC --> PLYOUT
+    METRIC --> RESTXT
+    METRIC --> CMS
+
+    classDef proc fill:#d1e7ff,stroke:#3573b9,color:#222
+    classDef data fill:#e2f0d9,stroke:#4f8a3a,color:#222
+    classDef out  fill:#e2d5f0,stroke:#6c3aa3,color:#222
+</div>
+
+<h2>5. Дерево вихідних артефактів</h2>
+<div class="mermaid">
+flowchart LR
+    R[("${output_dir}/eval_${model_name}_${TS}/")]:::out
+    H[(".hydra/<br/>config.yaml, overrides.yaml, hydra.yaml")]:::out
+    LOG[("&lt;job_name&gt;.log")]:::out
+    S0[("&lt;scene_0&gt;/<br/>pointCloud0.ply, pointCloud1.ply")]:::out
+    SK[("&lt;scene_K&gt;/<br/>pointCloud0.ply, pointCloud1.ply")]:::out
+    T[("test/")]:::out
+    TR[("res.txt")]:::out
+    CM[("cm.png (опц.)")]:::out
+    CM2[("cm2.png (опц.)")]:::out
+
+    R --> H
+    R --> LOG
+    R --> S0
+    R --> SK
+    R --> T
+    T --> TR
+    T --> CM
+    T --> CM2
+
+    classDef out fill:#e2d5f0,stroke:#6c3aa3,color:#222
+</div>
+
+<h2>6. Як рахується кожна метрика res.txt</h2>
+<p class="controls">
+  Дві гілки накопичення (A — low-res по циліндрах під час <code>track()</code>; B — full-res по повних сценах у <code>finalise()</code>).
+  Кожна <code>ConfusionMatrix</code> 3×3 (<code>CM[gt][pred]</code>, класи 0=unchanged, 1=destroy, 2=new) проганяється через однаковий набір формул, але результати потрапляють у різні секції <code>res.txt</code>.
+  Позначення: <code>TP_i=CM[i][i]</code>, <code>rowsum_i=Σ_pred CM[i][·]</code> (TP+FN), <code>colsum_i=Σ_gt CM[·][i]</code> (TP+FP).
+</p>
+<div class="mermaid">
+flowchart TD
+    OUT0["model.get_output()[0]<br/>output0:[n0,2] log-prob PC0"]:::data
+    OUT1["model.get_output()[1]<br/>output1:[n1,2] log-prob PC1"]:::data
+    GTRAW["мітки PC0: y∈{0,1}<br/>мітки PC1: y_target∈{0,1}"]:::data
+
+    subgraph LOW["A. Low-res (CDTracker.track, субсемпловані циліндри)"]
+        ARG_L["argmax(output) → pred0, pred1"]:::proc
+        MERGE_L["count_predicted_batch_list<br/>pred1×2, gt1×2 → спільні мітки {0,1,2}"]:::proc
+        CM_L[("_confusion_matrix 3×3<br/>акумулюється по ВСІХ батчах")]:::data
+    end
+
+    subgraph FULL["B. Full-res (HKCDTracker.finalise)"]
+        VOTES["votes[idx] += pred (сума log-prob)<br/>prediction_count[idx] += 1<br/>(перекриття циліндрів + voting_runs)"]:::proc
+        AGG["has_pred = count>0<br/>pred = argmax(votes)<br/>prob = max(votes)"]:::proc
+        KNN["knn_interpolate(k=1)<br/>субсітка → оригінальні точки PLY<br/>gt = сирі мітки clouds_loader"]:::proc
+        CM_S[("per-scene ConfusionMatrix 3×3")]:::data
+        CONCAT["concat усіх сцен:<br/>gt_tot, pred_tot, *_target"]:::proc
+        CM_C[("cumulative ConfusionMatrix 3×3")]:::data
+    end
+
+    subgraph FORM["ConfusionMatrix → формули (×100)"]
+        F_ACC["acc = Σ діаг / Σ усе"]:::model
+        F_MACC["macc = meanᵢ( TP_i / rowsum_i )<br/>(тільки присутні класи)"]:::model
+        F_MIOU["mIoU = mean_existing( IoU_i )<br/>IoU_i = TP_i / (rowsum_i + colsum_i − TP_i)"]:::model
+        F_MIOUCH["miou_ch = mean( IoU_1, IoU_2 )<br/>(лише класи змін)"]:::model
+        F_IOUC["iou_per_class = {0:IoU₀, 1:IoU₁, 2:IoU₂}"]:::model
+        F_ACCC["acc_per_class = CM.diag / rowsum<br/>(recall по класах)"]:::model
+    end
+
+    R1[("res.txt §1<br/>test_acc, test_macc,<br/>test_miou, test_miou_ch<br/>(LOW-RES)")]:::out
+    R1B[("res.txt §1<br/>test_whole_pc_&lt;scene&gt;<br/>acc, macc, miou, miou_ch,<br/>iou_per_class, acc_per_class")]:::out
+    R2[("res.txt §2<br/>Average full pc res<br/>(МАКРО-усереднення по сценах)")]:::out
+    R3[("res.txt §3<br/>Cumulative full pc res<br/>(МІКРО, усі точки разом)")]:::out
+
+    OUT0 --> ARG_L
+    OUT1 --> ARG_L
+    GTRAW --> MERGE_L
+    ARG_L --> MERGE_L --> CM_L
+
+    OUT0 --> VOTES
+    OUT1 --> VOTES
+    VOTES --> AGG --> KNN
+    GTRAW --> KNN
+    KNN --> CM_S
+    AGG --> CONCAT
+    KNN --> CONCAT
+    CONCAT --> CM_C
+
+    CM_L -. "застосовує" .-> FORM
+    CM_S -. "застосовує" .-> FORM
+    CM_C -. "застосовує" .-> FORM
+
+    CM_L --> R1
+    CM_S --> R1B
+    CM_S -- "merge_avg_mappings<br/>(per-scene → середнє)" --> R2
+    CM_C --> R3
+
+    classDef proc  fill:#d1e7ff,stroke:#3573b9,color:#222
+    classDef data  fill:#e2f0d9,stroke:#4f8a3a,color:#222
+    classDef model fill:#f8d7da,stroke:#b03a3a,color:#222
+    classDef out   fill:#e2d5f0,stroke:#6c3aa3,color:#222
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: "default",
+    flowchart: { curve: "basis", htmlLabels: true, useMaxWidth: true }
+  });
+</script>
+
+</body>
+</html>
