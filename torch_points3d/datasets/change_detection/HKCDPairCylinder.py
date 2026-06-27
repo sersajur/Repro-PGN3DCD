@@ -565,6 +565,12 @@ class HKCDCylinder(HKCDSphere):
         return pair
 
     def _get_tree(self, pair, i):
+        # area_sel reaches here as a 0-d tensor (e.g. centre[3].int() in _get_random);
+        # coerce to a plain int so the tree-cache filename is "..._2.p" — matching the
+        # int-named files built in _prepare_centers — instead of
+        # "...tensor(2, dtype=torch.int32).p", which never matched and forced constant
+        # in-memory rebuilds plus concurrent-write corruption under num_workers > 1.
+        i = int(i)
         path = self.filesPC0[i]
         name_tree = os.path.basename(path).split(".")[0] + "_2D_radius" + str(int(self._radius)) + "_" + str(i) + ".p"
         path_treesPC0 = os.path.join(self.preprocessed_dir, "tp3DTree", name_tree)
