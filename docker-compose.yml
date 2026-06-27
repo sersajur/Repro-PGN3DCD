@@ -223,3 +223,72 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+  # ────────────────────────────────────────────────────────────────────────
+
+  # ── Fast debug training (class-balanced 4-scene subset, short schedule) ──
+  # Train on /data/HKCD/Train_debug (created by
+  # pgn3dcd_experiments/make_train_subset.py) with a fresh preprocessed_dir
+  # and a reduced schedule, for ~12x faster iteration than the full run.
+  # Run baseline first so it builds the shared preprocessed_debug cache; the
+  # uncertainty run then reuses it.
+  gcp-gpu-train-fast:
+    profiles: [gcp-gpu]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gpu
+      network: host
+    image: pgn3dcd-gpu:latest
+    platform: linux/amd64
+    network_mode: host
+    runtime: nvidia
+    shm_size: '4gb'
+    volumes:
+      - ${PROJECT_PATH:-.}:/tp3d:rw
+      - ${CHECKPOINTS_DIR:?Set CHECKPOINTS_DIR in .env}:/checkpoints:ro
+      - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
+      - ${OUTPUT_PATH:?Set OUTPUT_PATH in .env}:/output:rw
+    working_dir: /tp3d
+    command: ["python3", "trainSiamKPConv.py",
+              "output_dir=/output/PGN3DCD_debug",
+              "data.dataTrainFile=/data/HKCD/Train_subset/",
+              "data.preprocessed_dir=/data/HKCD/preprocessed_debug/",
+              "data.sample_per_epoch=1800",
+              "training.epochs=150"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  gcp-gpu-train-fast-uncertainty:
+    profiles: [gcp-gpu]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gpu
+      network: host
+    image: pgn3dcd-gpu:latest
+    platform: linux/amd64
+    network_mode: host
+    runtime: nvidia
+    shm_size: '4gb'
+    volumes:
+      - ${PROJECT_PATH:-.}:/tp3d:rw
+      - ${CHECKPOINTS_DIR:?Set CHECKPOINTS_DIR in .env}:/checkpoints:ro
+      - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
+      - ${OUTPUT_PATH:?Set OUTPUT_PATH in .env}:/output:rw
+    working_dir: /tp3d
+    command: ["python3", "trainSiamKPConvWithPriorUncertainty.py",
+              "output_dir=/output/PriorUnc_debug",
+              "data.dataTrainFile=/data/HKCD/Train_subset/",
+              "data.preprocessed_dir=/data/HKCD/preprocessed_debug/",
+              "data.sample_per_epoch=1800",
+              "training.epochs=150"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
