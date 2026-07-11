@@ -276,6 +276,16 @@ class SiamEncFusionKPConv(UnwrappedUnetBasedModel):
         data0.x[:, 0] = input0.squeeze(-1)
         data1.x[:, 0] = input1.squeeze(-1)
 
+        # ── Opt-in per-point capture for the by-id cylinder dump (zero cost off) ──
+        # Baseline has only the dis-mask (no mu/var); batch aligns mask to points.
+        # Enable via `model._dump_io = True`; read from `model._dumped_io`.
+        if getattr(self, "_dump_io", False):
+            _cpu = lambda t: t.detach().cpu().clone()   # noqa: E731
+            self._dumped_io = {
+                "mask0": _cpu(mask0), "batch0": _cpu(data0.batch),
+                "mask1": _cpu(mask1), "batch1": _cpu(data1.batch),
+            }
+
         # 3、Get Transformer Mask
         data0 = self.down_modules_1[0](data0, precomputed=self.pre_computed)
         data1 = self.down_modules_2[0](data1, precomputed=self.pre_computed_target)

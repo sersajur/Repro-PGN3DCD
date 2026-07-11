@@ -136,7 +136,7 @@ services:
       - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
       - ${OUTPUT_PATH:?Set OUTPUT_PATH in .env}:/output:rw
     working_dir: /tp3d
-    command: [ "python3", "eval_SiamKPConv.py", "training.checkpoint_dir=/checkpoints", "model_name=PGN3DCD_patched", "output_dir=/output", "training.weight_name=miou_ch" ]
+    command: [ "python3", "eval_SiamKPConv.py", "training.checkpoint_dir=/checkpoints", "model_name=PGN3DCD_retrained", "output_dir=/output", "training.weight_name=miou_ch"]
     deploy:
       resources:
         reservations:
@@ -285,6 +285,115 @@ services:
               "data.preprocessed_dir=/data/HKCD/preprocessed_debug/",
               "data.sample_per_epoch=1800",
               "training.epochs=150"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+  # ────────────────────────────────────────────────────────────────────────
+
+  # ── Full-res TEST eval of the subset-trained checkpoints ────────────────
+  # Low-noise comparison instrument (2 test scenes, full_res voting) — the
+  # right tool for a 1-2% gap, unlike the noisy per-epoch val on the subset.
+  # checkpoint_dir points at the debug train output; model_name MUST match the
+  # <model_name>.pt filename in it. weight_name=miou_ch mirrors the working
+  # eval services; switch to best_miou_ch if that key is absent.
+  # NOTE: the timestamped checkpoint dirs below are pinned to the current
+  # debug runs — update them if you retrain.
+  gcp-gpu-eval-fast:
+    profiles: [gcp-gpu]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gpu
+      network: host
+    image: pgn3dcd-gpu:latest
+    platform: linux/amd64
+    network_mode: host
+    runtime: nvidia
+    shm_size: '4gb'
+    volumes:
+      - ${PROJECT_PATH:-.}:/tp3d:rw
+      - ${CHECKPOINTS_DIR:?Set CHECKPOINTS_DIR in .env}:/checkpoints:ro
+      - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
+      - ${OUTPUT_PATH:?Set OUTPUT_PATH in .env}:/output:rw
+    working_dir: /tp3d
+    command: ["python3", "eval_SiamKPConv.py",
+              "training.checkpoint_dir=/output/PGN3DCD_debug/train_SiamEncFusionKPConv_2026-06-25_20-58-21",
+              "model_name=SiamEncFusionKPConv",
+              "training.weight_name=miou_ch",
+              "output_dir=/output/PGN3DCD_debug"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  gcp-gpu-eval-fast-uncertainty:
+    profiles: [gcp-gpu]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gpu
+      network: host
+    image: pgn3dcd-gpu:latest
+    platform: linux/amd64
+    network_mode: host
+    runtime: nvidia
+    shm_size: '4gb'
+    volumes:
+      - ${PROJECT_PATH:-.}:/tp3d:rw
+      - ${CHECKPOINTS_DIR:?Set CHECKPOINTS_DIR in .env}:/checkpoints:ro
+      - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
+      - ${OUTPUT_PATH:?Set OUTPUT_PATH in .env}:/output:rw
+    working_dir: /tp3d
+    command: ["python3", "eval_SiamKPConvWithPriorUncertainty.py",
+              "training.checkpoint_dir=/output/PriorUnc_debug/train_SiamKPConvWithPriorUncertainty_2026-06-26_12-51-46",
+              "model_name=SiamKPConvWithPriorUncertainty",
+              "training.weight_name=miou_ch",
+              "output_dir=/output/PriorUnc_debug"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+  # ────────────────────────────────────────────────────────────────────────
+
+  # ── Dump chosen cylinders (by id from cylinders.csv) to PLY ─────────────
+  # Parametrised via env vars; defaults target the prior debug checkpoint.
+  #   Prior:    CYL_IDS="11-NE-12B:3,11-NE-12C:10" \
+  #             docker compose --profile gcp-gpu --env-file .env.gcp up gcp-gpu-dump-cylinders
+  #   Baseline: CYL_IDS="11-NE-12B:3" \
+  #             CKPT_DIR=/output/PGN3DCD_debug/train_SiamEncFusionKPConv_2026-06-25_20-58-21 \
+  #             MODEL_NAME=SiamEncFusionKPConv DUMP_DIR=/output/PGN3DCD_debug/picked \
+  #             docker compose --profile gcp-gpu --env-file .env.gcp up gcp-gpu-dump-cylinders
+  gcp-gpu-dump-cylinders:
+    profiles: [gcp-gpu]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gpu
+      network: host
+    image: pgn3dcd-gpu:latest
+    platform: linux/amd64
+    network_mode: host
+    runtime: nvidia
+    shm_size: '4gb'
+    volumes:
+      - ${PROJECT_PATH:-.}:/tp3d:rw
+      - ${CHECKPOINTS_DIR:?Set CHECKPOINTS_DIR in .env}:/checkpoints:ro
+      - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
+      - ${OUTPUT_PATH:?Set OUTPUT_PATH in .env}:/output:rw
+    working_dir: /tp3d
+    command: ["python3", "pgn3dcd_experiments/dump_cylinders_by_id.py",
+              "training.checkpoint_dir=/checkpoints",
+              "model_name=SiamKPConvWithPriorUncertainty_5F",
+              "training.weight_name=miou_ch",
+              "+cyl_ids='11-NE-12C:4061,11-NE-12C:9203,11-NE-12C:2843'",
+              "+dump_dir='/output/debug/picked_cylinders(SiamKPConvWithPriorUncertainty_5F)'"]
     deploy:
       resources:
         reservations:

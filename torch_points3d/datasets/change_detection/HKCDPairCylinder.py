@@ -712,7 +712,7 @@ class HKCDDataset(BaseSiameseDataset): #Urb3DCDDataset Urb3DSimulDataset
             return self.test_dataset
 
     @staticmethod
-    def to_ply(pos, label, file, color=OBJECT_COLOR, sf=None):
+    def to_ply(pos, label, file, color=OBJECT_COLOR, sf=None, gt=None):
         """ Allows to save Urb3DCD predictions to disk using Urb3DCD color scheme
             Parameters
             ----------
@@ -723,7 +723,7 @@ class HKCDDataset(BaseSiameseDataset): #Urb3DCDDataset Urb3DSimulDataset
             file : string
                 Save location
             """
-        to_ply(pos, label, file, color=color, sf=sf)
+        to_ply(pos, label, file, color=color, sf=sf, gt=gt)
 
     def get_tracker(self, wandb_log: bool, tensorboard_log: bool, full_pc=False, full_res=False):
         """Factory method for the tracker
@@ -741,7 +741,7 @@ class HKCDDataset(BaseSiameseDataset): #Urb3DCDDataset Urb3DSimulDataset
 ################################### UTILS #######################################
 
 
-def to_ply(pos, label, file, color = OBJECT_COLOR, sf = None):
+def to_ply(pos, label, file, color = OBJECT_COLOR, sf = None, gt = None):
     """ Allows to save Urb3DCD predictions to disk using Urb3DCD color scheme
        Parameters
        ----------
@@ -751,34 +751,38 @@ def to_ply(pos, label, file, color = OBJECT_COLOR, sf = None):
            predicted label
        file : string
            Save location
+       sf : optional per-point scalar field (e.g. confidence)
+       gt : optional per-point ground-truth label; when given, also writes a
+           "correct" field (1 where pred == gt, else 0)
     """
     assert len(label.shape) == 1
     assert pos.shape[0] == label.shape[0]
     pos = np.asarray(pos)
-    if max(label)<= color.shape[0]:
-        colors = color[np.asarray(label)]
+    label = np.asarray(label)
+    if max(label) <= color.shape[0]:
+        colors = color[label]
     else:
         colors = color[np.zeros(pos.shape[0], dtype=np.int)]
-    if sf is None:
-        ply_array = np.ones(
-            pos.shape[0],
-            dtype=[("x", "f4"), ("y", "f4"), ("z", "f4"), ("red", "u1"),
-                   ("green", "u1"), ("blue", "u1"), ("pred", "u2")]
-        )
-    else:
-        ply_array = np.ones(
-            pos.shape[0],
-            dtype=[("x", "f4"), ("y", "f4"), ("z", "f4"), ("red", "u1"),
-                   ("green", "u1"), ("blue", "u1"), ("pred", "u2"), ("sf","f4")]
-        )
-        ply_array["sf"] = np.asarray(sf)
+    dtype = [("x", "f4"), ("y", "f4"), ("z", "f4"), ("red", "u1"),
+             ("green", "u1"), ("blue", "u1"), ("pred", "u2")]
+    if sf is not None:
+        dtype.append(("sf", "f4"))
+    if gt is not None:
+        gt = np.asarray(gt)
+        dtype += [("gt", "u2"), ("correct", "u1")]
+    ply_array = np.ones(pos.shape[0], dtype=dtype)
     ply_array["x"] = pos[:, 0]
     ply_array["y"] = pos[:, 1]
     ply_array["z"] = pos[:, 2]
     ply_array["red"] = colors[:, 0]
     ply_array["green"] = colors[:, 1]
     ply_array["blue"] = colors[:, 2]
-    ply_array["pred"] = np.asarray(label)
+    ply_array["pred"] = label
+    if sf is not None:
+        ply_array["sf"] = np.asarray(sf)
+    if gt is not None:
+        ply_array["gt"] = gt
+        ply_array["correct"] = (label == gt).astype(np.uint8)
     el = PlyElement.describe(ply_array, "params")
     PlyData([el], byte_order=">").write(file)
 

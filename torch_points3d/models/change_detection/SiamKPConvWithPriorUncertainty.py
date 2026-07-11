@@ -156,6 +156,18 @@ class SiamKPConvWithPriorUncertainty(SiamEncFusionKPConv):
         data0.x = torch.cat([data0.x, var0], dim=1)
         data1.x = torch.cat([data1.x, var1], dim=1)
 
+        # ── Opt-in per-point capture for the by-id cylinder dump (zero cost off) ──
+        # mu/var/mask are local to forward and discarded otherwise; batch aligns
+        # them to points. Everything else the dump needs (pos via scene+idx, rgb,
+        # gt) comes from the batch, so only these four (×PC0/PC1) are captured.
+        # Enable via `model._dump_io = True`; read from `model._dumped_io`.
+        if getattr(self, "_dump_io", False):
+            _cpu = lambda t: t.detach().cpu().clone()   # noqa: E731
+            self._dumped_io = {
+                "mu0": _cpu(mu0), "var0": _cpu(var0), "mask0": _cpu(mask0), "batch0": _cpu(data0.batch),
+                "mu1": _cpu(mu1), "var1": _cpu(var1), "mask1": _cpu(mask1), "batch1": _cpu(data1.batch),
+            }
+
         # ── Encoder / decoder (unchanged from base) ──────────────────
         data0 = self.down_modules_1[0](data0, precomputed=self.pre_computed)
         data1 = self.down_modules_2[0](data1, precomputed=self.pre_computed_target)

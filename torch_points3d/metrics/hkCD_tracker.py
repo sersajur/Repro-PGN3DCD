@@ -206,8 +206,8 @@ class HKCDTracker(CDTracker):
                         if not os.path.exists(saving_p):
                             os.makedirs(saving_p)
 
-                        self._dataset.to_ply(pos, pred, os.path.join(saving_p, "pointCloud0.ply"), sf=probability)
-                        self._dataset.to_ply(pos_target, pred_target, os.path.join(saving_p, "pointCloud1.ply"),sf=probability_target)
+                        self._dataset.to_ply(pos, pred, os.path.join(saving_p, "pointCloud0.ply"), sf=probability, gt=gt)
+                        self._dataset.to_ply(pos_target, pred_target, os.path.join(saving_p, "pointCloud1.ply"), sf=probability_target, gt=gt_target)
             self.gt_tot = np.concatenate(gt_tot)
             self.gt_tot_target = np.concatenate(gt_tot_target)
             self.pred_tot = np.concatenate(pred_tot)

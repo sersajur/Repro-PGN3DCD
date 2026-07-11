@@ -267,6 +267,13 @@ class Trainer:
                 log.warning("No forward will be run on dataset %s." % stage_name)
                 continue
 
+            # Always write per-cylinder CSV stats during a standalone eval pass
+            # (skipped during training-time validation).
+            dumper = None
+            if not self._is_training:
+                from torch_points3d.metrics.cylinder_dump import CylinderDumper
+                dumper = CylinderDumper(loader.dataset, os.getcwd())
+
             for i in range(voting_runs):
                 with Ctq(loader) as tq_loader:
                     for data in tq_loader:
@@ -275,6 +282,8 @@ class Trainer:
                             with torch.cuda.amp.autocast(enabled=self._model.is_mixed_precision()):
                                 self._model.forward(epoch=epoch)
                             self._tracker.track(self._model, data=data, **self.tracker_options)
+                            if dumper is not None and i == 0:
+                                dumper.add_batch(self._model, data)
                         tq_loader.set_postfix(**self._tracker.get_metrics(), color=COLORS.TEST_COLOR)
                         if self.has_visualization and self._visualizer.is_active:
                             self._visualizer.save_visuals(self._model.get_current_visuals())
@@ -285,6 +294,9 @@ class Trainer:
                         if self.profiling:
                             if i > self.num_batches:
                                 return 0
+
+            if dumper is not None:
+                dumper.finalise()
 
             self._finalize_epoch(epoch)
             self._tracker.print_summary()
