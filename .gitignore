@@ -7,3 +7,4 @@ outputs/
 output/
 .env*
 !.env.example
+.vscode/

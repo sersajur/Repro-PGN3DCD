@@ -46,6 +46,7 @@ COPY README.md README.md
 ENV SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL=True
 RUN pip3 install --no-deps . && rm -rf /root/.cache
 RUN pip3 install --timeout 300 --retries 5 . && rm -rf /root/.cache
+RUN pip3 install debugpy && rm -rf /root/.cache
 
 # Clean up deadsnakes PPA sources before second apt-get update (avoids slow ppa.launchpad.net)
 RUN rm -f /etc/apt/sources.list.d/*.list && \
