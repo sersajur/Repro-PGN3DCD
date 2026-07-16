@@ -104,7 +104,7 @@ class SiamKPConvWithPriorUncertainty(SiamEncFusionKPConv):
         w_C = 1.0 / var_C
         w_sum = w_D + w_C
 
-        mu = (w_D * D + w_C * C) / w_sum          # fused mean
+        mu = (w_D * D + w_C * C) / w_sum            # fused mean
         var_total = 1.0 / w_sum                     # fused variance
 
         # ── Confidence-modulated mask ─────────────────────────────────

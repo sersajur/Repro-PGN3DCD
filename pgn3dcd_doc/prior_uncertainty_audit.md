@@ -5,6 +5,13 @@
 **Файл моделі:** `torch_points3d/models/change_detection/SiamKPConvWithPriorUncertainty.py`
 **Конфіг:** `conf/configSiamKPConvWithPriorUncertainty.yaml` + `conf/models/change_detection/SiamKPConvWithPriorUncertainty.yaml`
 
+> 📐 **Математика — окремо від журналу.** Цей документ веде історію гіпотез і експериментів.
+> Розбір самих формул «на пальцях» живе тут:
+> [prior_mask_math_baseline.md](prior_mask_math_baseline.md) (baseline PGN3DCD) і
+> [prior_mask_math_uncertainty.md](prior_mask_math_uncertainty.md) (наш варіант).
+> Обидва підкріплені тестами: `test/test_prior_baseline_mask.py` + `test/test_prior_uncertainty_mask.py`
+> (25 тестів на закритих формулах).
+
 > **🔻 ОНОВЛЕНО після runtime-діагностики**
 >
 > Початкова гіпотеза A2 (виродження priorʼа через сатурацію RGB) **спростована** реальними даними з прогону. RGB у датасеті вже знаходиться в нормалізованому діапазоні (`C.sat ≈ 0.003`), тож inverse-variance fusion НЕ вибухає. Прайор живий, mu/var/mask мають справжню варіативність.
