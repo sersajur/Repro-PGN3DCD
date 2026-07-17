@@ -223,6 +223,90 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+
+  # ── FIX A: agreement-gated prior (SiamKPConvWithPriorAgreement) ─────────
+  gcp-gpu-train-agreement:
+    profiles: [gcp-gpu]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gpu
+      network: host
+    image: pgn3dcd-gpu:latest
+    platform: linux/amd64
+    network_mode: host
+    runtime: nvidia
+    shm_size: '4gb'
+    volumes:
+      - ${PROJECT_PATH:-.}:/tp3d:rw
+      - ${CHECKPOINTS_DIR:?Set CHECKPOINTS_DIR in .env}:/checkpoints:ro
+      - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
+      - ${OUTPUT_PATH:?Set OUTPUT_PATH in .env}:/output:rw
+    working_dir: /tp3d
+    command: ["python3", "trainSiamKPConvWithPriorAgreement.py", "output_dir=/output/SiamKPConvWithPriorAgreement"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  gcp-gpu-eval-agreement:
+    profiles: [gcp-gpu]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gpu
+      network: host
+    image: pgn3dcd-gpu:latest
+    platform: linux/amd64
+    network_mode: host
+    runtime: nvidia
+    shm_size: '4gb'
+    volumes:
+      - ${PROJECT_PATH:-.}:/tp3d:rw
+      - ${CHECKPOINTS_DIR:?Set CHECKPOINTS_DIR in .env}:/checkpoints:ro
+      - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
+      - ${OUTPUT_PATH:?Set OUTPUT_PATH in .env}:/output:rw
+    working_dir: /tp3d
+    command: ["python3", "eval_SiamKPConvWithPriorAgreement.py", "training.checkpoint_dir=/checkpoints", "model_name=SiamKPConvWithPriorAgreement", "output_dir=/output", "training.weight_name=miou_ch"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  gcp-gpu-train-fast-agreement:
+    profiles: [gcp-gpu]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gpu
+      network: host
+    image: pgn3dcd-gpu:latest
+    platform: linux/amd64
+    network_mode: host
+    runtime: nvidia
+    shm_size: '4gb'
+    volumes:
+      - ${PROJECT_PATH:-.}:/tp3d:rw
+      - ${CHECKPOINTS_DIR:?Set CHECKPOINTS_DIR in .env}:/checkpoints:ro
+      - ${DATA_PATH:?Set DATA_PATH in .env}:/data:rw
+      - ${OUTPUT_PATH:?Set OUTPUT_PATH in .env}:/output:rw
+    working_dir: /tp3d
+    command: ["python3", "trainSiamKPConvWithPriorAgreement.py",
+              "output_dir=/output/PriorAgreement_debug",
+              "data.dataTrainFile=/data/HKCD/Train_subset/",
+              "data.preprocessed_dir=/data/HKCD/preprocessed_debug/",
+              "data.sample_per_epoch=1800",
+              "training.epochs=150"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
   # ────────────────────────────────────────────────────────────────────────
 
   # ── Fast debug training (class-balanced 4-scene subset, short schedule) ──
